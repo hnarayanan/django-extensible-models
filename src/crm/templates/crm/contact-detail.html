@@ -19,14 +19,20 @@
   <dd class="col-sm-11">{{ contact.birth_date|date:"jS F Y" }}</dd>
 </dl>
 
-<h2>Extra fields</h2>
+{% if contact.custom_schema %}
+<h2>Custom Extra Field Schema</h2>
+<pre>{{ contact.custom_schema|pprint }}</pre>
+{% endif %}
 
+{% if contact.extra %}
+<h2>Custom Extra Data</h2>
 <dl class="row">
   {% for key, value in contact.extra.items %}
   <dt class="col-sm-1">{{ key }}</dt>
   <dd class="col-sm-11">{{ value }}</dd>
   {% endfor %}
 </dl>
+{% endif %}
 
 <p><a class="btn btn-outline-primary mt-4" href="{% url 'contact-update' contact.slug %}" role="button">Update</a></p>
 {% endblock %}

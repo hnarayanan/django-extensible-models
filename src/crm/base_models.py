@@ -9,11 +9,12 @@ from django.contrib.sites.models import Site
 
 
 from django_extensions.db.models import TitleSlugDescriptionModel, ActivatorModel
+from django_jsonform.models.fields import JSONField
 
 
 class ExtraFieldSchema(models.Model):
 
-    schema = models.JSONField() # Should be valid JSON Schema
+    schema = JSONField() # Should be valid JSON Schema
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.UUIDField()
     content_object = GenericForeignKey('content_type', 'object_id')
@@ -36,6 +37,10 @@ class ExtraFieldModel(models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def custom_schema(self):
+        return self.extra_schema.first()
 
 
 class BaseModel(TitleSlugDescriptionModel, ActivatorModel, ExtraFieldModel):

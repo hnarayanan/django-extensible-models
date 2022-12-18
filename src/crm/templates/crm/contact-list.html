@@ -16,6 +16,7 @@ All Contacts
         <th scope="col">Company</th>
         <th scope="col">Description</th>
         <th scope="col">Birth Date</th>
+        <th scope="col">Has Custom Schema?</th>
         <th scope="col">Update</th>
       </tr>
     </thead>
@@ -27,10 +28,11 @@ All Contacts
         <td>{{ contact.company.title|default:"&mdash;" }}</td>
         <td>{{ contact.description|default:"&mdash;" }}</td>
         <td>{{ contact.birth_date|date:"jS F Y"|default:"&mdash;"  }}</td>
+        <!-- {% for key, value in contact.extra.items %} -->
+        <!-- <td>{{ key}}: {{ value }}</td> -->
+        <!-- {% endfor %} -->
+        <td>{{ contact.custom_schema|yesno:"Yes,No"  }}</td>
         <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
-        {% for key, value in contact.extra.items %}
-        <td>{{ key}}: {{ value }}</td>
-        {% endfor %}
       </tr>
       {% endfor %}
     </tbody>
