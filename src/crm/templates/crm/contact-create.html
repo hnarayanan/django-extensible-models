@@ -1,4 +1,16 @@
+{% extends "crm/base.html" %}
+
+{% load crispy_forms_tags %}
+
+{% block title %}at
+Create Contact
+{% endblock %}
+
+{% block content%}
+<h1 class="my-4">Create Contact</h1>
+
 <form method="post">{% csrf_token %}
-    {{ form.as_p }}
-    <input type="submit" value="Send message">
+  {{ form|crispy }}
+  <input class="btn btn-primary" type="submit" value="Submit">
 </form>
+{% endblock %}

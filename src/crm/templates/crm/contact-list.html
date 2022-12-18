@@ -1,8 +1,11 @@
 {% extends 'crm/base.html' %}
 
+{% block title %}
+All Contacts
+{% endblock %}
 
 {% block content %}
-<h1>All Contacts</h1>
+<h1 class="mt-4">All Contacts</h1>
 
 <div class="table-responsive mt-4">
   <table class="table">
@@ -10,16 +13,18 @@
       <tr>
         <th scope="col">#</th>
         <th scope="col">Name</th>
+        <th scope="col">Company</th>
         <th scope="col">Description</th>
-        <th scope="col">Birthdate</th>
+        <th scope="col">Birth Date</th>
         <th scope="col">Update</th>
       </tr>
     </thead>
     <tbody class="table-group-divider">
       {% for contact in contacts %}
       <tr>
-        <th scope="row">1</th>
+        <th scope="row">{{ forloop.counter }}</th>
         <td><a href="{% url 'contact-detail' contact.slug %}">{{ contact.title }}</a></td>
+        <td>{{ contact.company.title }}</td>
         <td>{{ contact.description }}</td>
         <td>{{ contact.birth_date|date:"jS F Y" }}</td>
         <td><a href="{% url 'contact-update' contact.slug %}">Update</td>

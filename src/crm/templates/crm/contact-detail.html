@@ -1,5 +1,8 @@
 {% extends 'crm/base.html' %}
 
+{% block title %}
+{{ contact.title }}
+{% endblock %}
 
 {% block content %}
 <a class="btn btn-outline-primary btn-sm my-4" href="{% url 'contact-list' %}" role="button">&larr; All Contacts</a>
@@ -7,7 +10,6 @@
 <h1>{{ contact.title }}</h1>
 
 <h2>Base fields</h2>
-
 
 <dl class="row">
   <dt class="col-sm-1">Description</dt>
