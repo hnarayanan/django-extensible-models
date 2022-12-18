@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import Contact, Company
+from .base_models import ExtraFieldSchema
 
 
 @admin.register(Contact)
@@ -26,3 +27,10 @@ class CompanyAdmin(admin.ModelAdmin):
     inlines = [
         ContactInline,
     ]
+
+
+@admin.register(ExtraFieldSchema)
+class ExtraFieldSchemaAdin(admin.ModelAdmin):
+
+    list_display = ('content_type', 'object_id', 'content_object', 'schema')
+    filter_horizontal = ('portals',)
