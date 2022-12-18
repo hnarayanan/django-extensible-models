@@ -29,7 +29,8 @@ class ContactForm(ModelForm):
             if self.instance.extra_schema:
                 schema = self.instance.extra_schema.schema
                 extra = self.instance.extra
-                for key, value in schema['properties'].items():
+                properties = schema.get('properties', {})
+                for key, value in properties.items():
                     self.fields[key] = get_widget_for_field(value)
                     self.fields[key].label = value.get("description", key)
                     self.initial[key] = extra.get(key, None)
@@ -39,7 +40,8 @@ class ContactForm(ModelForm):
             if self.instance.extra_schema:
                 extra = self.instance.extra
                 schema = self.instance.extra_schema.schema
-                for key, value in schema['properties'].items():
+                properties = schema.get('properties', {})
+                for key, value in properties.items():
                     extra[key] = self.cleaned_data.get(key, {})
 
         return super().save(*args, **kwargs)

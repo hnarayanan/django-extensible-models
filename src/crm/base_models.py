@@ -9,7 +9,6 @@ from django.contrib.sites.models import Site
 
 
 from django_extensions.db.models import TitleSlugDescriptionModel, ActivatorModel
-from django_jsonform.models.fields import JSONField
 
 
 class ExtraFieldSchema(models.Model):
@@ -32,7 +31,7 @@ class ExtraFieldSchema(models.Model):
 
 class ExtraFieldModel(models.Model):
 
-    extra = models.JSONField(default=dict, blank=True)
+    extra = models.JSONField(null=True, blank=True)
     _extra_schema = GenericRelation(ExtraFieldSchema)
 
     class Meta:
