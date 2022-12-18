@@ -1,19 +1,17 @@
+from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView
+from django.urls import reverse
 
 from .models import Contact
 from .forms import ContactForm
 
 
-class ContactCreateView(CreateView):
+class ContactListView(ListView):
 
-    template_name = "crm/contact-create.html"
-    form_class = ContactForm
-    success_url = "/contacts/create/"
-
-    def form_valid(self, form):
-        print("Update form was successfuly submitted")
-        return super().form_valid(form)
+    model = Contact
+    template_name = "crm/contact-list.html"
+    context_object_name = "contacts"
 
 
 class ContactDetailView(DetailView):
@@ -23,12 +21,21 @@ class ContactDetailView(DetailView):
     context_object_name = "contact"
 
 
-class ContactUpdateView(UpdateView):
+class ContactCreateView(CreateView):
 
-    template_name = "crm/contact-update.html"
+    template_name = "crm/contact-create.html"
     form_class = ContactForm
     success_url = "/contacts/create/"
 
-    def form_valid(self, form):
-        print("Create form was successfuly submitted")
-        return super().form_valid(form)
+    def get_success_url(self):
+        return reverse("contact-detail", args=(self.object.id,))
+
+
+class ContactUpdateView(UpdateView):
+
+    model = Contact
+    form_class = ContactForm
+    template_name = "crm/contact-update.html"
+
+    def get_success_url(self):
+        return reverse("contact-detail", args=(self.object.id,))

@@ -16,10 +16,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from crm.views import ContactCreateView, ContactDetailView, ContactUpdateView
+from crm.views import ContactListView, ContactDetailView, ContactCreateView, ContactUpdateView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("contacts/", ContactListView.as_view(), name='contact-list'),
     path("contacts/create/", ContactCreateView.as_view(), name='contact-create'),
     path("contacts/<uuid:pk>/", ContactDetailView.as_view(), name='contact-detail'),
     path("contacts/<uuid:pk>/update/", ContactUpdateView.as_view(), name='contact-update'),

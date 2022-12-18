@@ -1,6 +1,10 @@
+<p><a href="{% url 'contact-list' %}">&larr; All Contacts</a></p>
+
 <h1>{{ contact.title }}</h1>
 
 <p>{{ contact.description }}</p>
+
+<p>Birth Date: {{ contact.birth_date|date:"jS F Y" }}
 
 <h2>Extra fields</h2>
 
@@ -9,3 +13,5 @@
   <li>{{ key}}: {{ value }}</li>
   {% endfor %}
 </ul>
+
+<p><a href="{% url 'contact-update' contact.pk %}">Update</a></p>
