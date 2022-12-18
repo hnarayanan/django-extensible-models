@@ -11,6 +11,7 @@ class BaseModel(TitleSlugDescriptionModel, ActivatorModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    extra = models.JSONField(null=True, blank=True)
 
     portals = models.ManyToManyField(Site)
 
@@ -18,4 +19,3 @@ class BaseModel(TitleSlugDescriptionModel, ActivatorModel):
         abstract = True
 
     # modified_by =
-    # extra = JSONField()
