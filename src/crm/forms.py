@@ -4,6 +4,7 @@ from django.forms import ModelForm
 from .models import Contact
 from .base_models import ExtraFieldSchema
 
+
 def get_widget_for_field(field):
     if field["type"] == "string":
         if field.get("enum"):
@@ -43,5 +44,7 @@ class ContactForm(ModelForm):
                 properties = schema.get('properties', {})
                 for key, value in properties.items():
                     extra[key] = self.cleaned_data.get(key, {})
+                    # TODO: Maybe here we should validate `extra`
+                    # relative to the JSON Schema?
 
         return super().save(*args, **kwargs)

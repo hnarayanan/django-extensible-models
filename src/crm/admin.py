@@ -32,5 +32,5 @@ class CompanyAdmin(admin.ModelAdmin):
 @admin.register(ExtraFieldSchema)
 class ExtraFieldSchemaAdin(admin.ModelAdmin):
 
-    list_display = ('content_type', 'object_id', 'content_object', 'schema')
+    list_display = ('content_type', 'object_id', 'content_object', 'get_portal_names', 'schema')
     filter_horizontal = ('portals',)
