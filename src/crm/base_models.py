@@ -11,7 +11,15 @@ from django.contrib.sites.models import Site
 from django_extensions.db.models import TitleSlugDescriptionModel, ActivatorModel
 
 
-class ExtraFieldSchema(models.Model):
+class PortalRelatedModel(models.Model):
+
+    portals = models.ManyToManyField(Site, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class ExtraFieldSchema(PortalRelatedModel):
 
     schema = models.JSONField()  # Should be valid JSON Schema
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
@@ -25,8 +33,6 @@ class ExtraFieldSchema(models.Model):
         indexes = [
             models.Index(fields=["content_type", "object_id"]),
         ]
-
-    portals = models.ManyToManyField(Site)
 
 
 class ExtraFieldModel(models.Model):
@@ -42,13 +48,12 @@ class ExtraFieldModel(models.Model):
         return self._extra_schema.first()
 
 
-class BaseModel(TitleSlugDescriptionModel, ActivatorModel, ExtraFieldModel):
+class BaseModel(TitleSlugDescriptionModel, ActivatorModel, PortalRelatedModel, ExtraFieldModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    portals = models.ManyToManyField(Site, blank=True)
     # modified_by =
 
     class Meta:
