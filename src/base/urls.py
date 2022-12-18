@@ -22,6 +22,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("contacts/", ContactListView.as_view(), name='contact-list'),
     path("contacts/create/", ContactCreateView.as_view(), name='contact-create'),
-    path("contacts/<uuid:pk>/", ContactDetailView.as_view(), name='contact-detail'),
-    path("contacts/<uuid:pk>/update/", ContactUpdateView.as_view(), name='contact-update'),
+    path("contacts/<slug:slug>/", ContactDetailView.as_view(), name='contact-detail'),
+    path("contacts/<slug:slug>/update/", ContactUpdateView.as_view(), name='contact-update'),
 ]

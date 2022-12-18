@@ -28,7 +28,7 @@ class ContactCreateView(CreateView):
     success_url = "/contacts/create/"
 
     def get_success_url(self):
-        return reverse("contact-detail", args=(self.object.id,))
+        return reverse("contact-detail", args=(self.object.slug,))
 
 
 class ContactUpdateView(UpdateView):
@@ -38,4 +38,4 @@ class ContactUpdateView(UpdateView):
     template_name = "crm/contact-update.html"
 
     def get_success_url(self):
-        return reverse("contact-detail", args=(self.object.id,))
+        return reverse("contact-detail", args=(self.object.slug,))

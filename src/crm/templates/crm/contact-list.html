@@ -11,10 +11,10 @@
   </th>
   {% for contact in contacts %}
   <tr>
-    <td><a href="{% url 'contact-detail' contact.pk %}">{{ contact.title }}</a></td>
+    <td><a href="{% url 'contact-detail' contact.slug %}">{{ contact.title }}</a></td>
     <td>{{ contact.description }}</td>
     <td>{{ contact.birth_date|date:"jS F Y" }}</td>
-    <td><a href="{% url 'contact-update' contact.pk %}">Update</td>
+    <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
     {% for key, value in contact.extra.items %}
     <td>{{ key}}: {{ value }}</td>
     {% endfor %}
