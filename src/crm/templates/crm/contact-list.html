@@ -24,9 +24,9 @@ All Contacts
       <tr>
         <th scope="row">{{ forloop.counter }}</th>
         <td><a href="{% url 'contact-detail' contact.slug %}">{{ contact.title }}</a></td>
-        <td>{{ contact.company.title }}</td>
-        <td>{{ contact.description }}</td>
-        <td>{{ contact.birth_date|date:"jS F Y" }}</td>
+        <td>{{ contact.company.title|default:"&mdash;" }}</td>
+        <td>{{ contact.description|default:"&mdash;" }}</td>
+        <td>{{ contact.birth_date|date:"jS F Y"|default:"&mdash;"  }}</td>
         <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
         {% for key, value in contact.extra.items %}
         <td>{{ key}}: {{ value }}</td>

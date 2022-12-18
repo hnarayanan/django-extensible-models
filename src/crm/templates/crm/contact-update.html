@@ -7,10 +7,16 @@ Update Contact
 {% endblock %}
 
 {% block content%}
-<h1 class="my-4">Update Contact</h1>
+<a class="btn btn-outline-primary btn-sm mt-4" href="{% url 'contact-detail' object.slug %}" role="button">&larr; Contact Detail</a>
 
-<form method="post">{% csrf_token %}
-  {{ form|crispy }}
-  <input class="btn btn-primary" type="submit" value="Submit">
-</form>
+<h1 class="mt-4">Update Contact</h1>
+
+<div class="row">
+  <div class="col-lg-6">
+    <form method="post">{% csrf_token %}
+      {{ form|crispy }}
+      <input class="btn btn-primary" type="submit" value="Submit">
+    </form>
+  </div>
+  </div>
 {% endblock %}
