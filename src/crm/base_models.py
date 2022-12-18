@@ -14,10 +14,10 @@ from django_jsonform.models.fields import JSONField
 
 class ExtraFieldSchema(models.Model):
 
-    schema = JSONField() # Should be valid JSON Schema
+    schema = models.JSONField()  # Should be valid JSON Schema
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.UUIDField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    content_object = GenericForeignKey("content_type", "object_id")
 
     def __str__(self):
         return json.dumps(self.schema, indent=2)
@@ -32,15 +32,15 @@ class ExtraFieldSchema(models.Model):
 
 class ExtraFieldModel(models.Model):
 
-    extra = models.JSONField(default=dict)
-    extra_schema = GenericRelation(ExtraFieldSchema)
+    extra = models.JSONField(default=dict, blank=True)
+    _extra_schema = GenericRelation(ExtraFieldSchema)
 
     class Meta:
         abstract = True
 
     @property
-    def custom_schema(self):
-        return self.extra_schema.first()
+    def extra_schema(self):
+        return self._extra_schema.first()
 
 
 class BaseModel(TitleSlugDescriptionModel, ActivatorModel, ExtraFieldModel):

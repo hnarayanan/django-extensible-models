@@ -12,26 +12,29 @@
 <h2>Base fields</h2>
 
 <dl class="row">
-  <dt class="col-sm-1">Description</dt>
-  <dd class="col-sm-11">{{ contact.description }}</dd>
+  <dt class="col-sm-2">Company</dt>
+  <dd class="col-sm-10">{{ contact.company.title }}</dd>
 
-  <dt class="col-sm-1">Birth Date</dt>
-  <dd class="col-sm-11">{{ contact.birth_date|date:"jS F Y" }}</dd>
+  <dt class="col-sm-2">Description</dt>
+  <dd class="col-sm-10">{{ contact.description }}</dd>
+
+  <dt class="col-sm-2">Birth Date</dt>
+  <dd class="col-sm-10">{{ contact.birth_date|date:"jS F Y" }}</dd>
 </dl>
-
-{% if contact.custom_schema %}
-<h2>Custom Extra Field Schema</h2>
-<pre>{{ contact.custom_schema|pprint }}</pre>
-{% endif %}
 
 {% if contact.extra %}
-<h2>Custom Extra Data</h2>
+<h2>Custom Extra Fields</h2>
 <dl class="row">
   {% for key, value in contact.extra.items %}
-  <dt class="col-sm-1">{{ key }}</dt>
-  <dd class="col-sm-11">{{ value }}</dd>
+  <dt class="col-sm-2">{{ key }}</dt>
+  <dd class="col-sm-10">{{ value }}</dd>
   {% endfor %}
 </dl>
+{% endif %}
+
+{% if contact.extra_schema %}
+<h2>Custom Extra Field Schema</h2>
+<pre>{{ contact.extra_schema|pprint }}</pre>
 {% endif %}
 
 <p><a class="btn btn-outline-primary mt-4" href="{% url 'contact-update' contact.slug %}" role="button">Update</a></p>

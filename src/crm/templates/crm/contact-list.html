@@ -31,7 +31,7 @@ All Contacts
         <!-- {% for key, value in contact.extra.items %} -->
         <!-- <td>{{ key}}: {{ value }}</td> -->
         <!-- {% endfor %} -->
-        <td>{{ contact.custom_schema|yesno:"Yes,No"  }}</td>
+        <td>{{ contact.extra_schema|yesno:"Yes,No"  }}</td>
         <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
       </tr>
       {% endfor %}
