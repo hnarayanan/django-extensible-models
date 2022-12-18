@@ -1,25 +1,36 @@
+{% extends 'crm/base.html' %}
+
+
+{% block content %}
 <h1>All Contacts</h1>
 
-<table>
-  <tr>
-    <th>Name</th>
-    <th>Description</th>
-    <th>Birth Date</th>
-    <th>Update</th>
-    <th></th>
-    <th></th>
-  </th>
-  {% for contact in contacts %}
-  <tr>
-    <td><a href="{% url 'contact-detail' contact.slug %}">{{ contact.title }}</a></td>
-    <td>{{ contact.description }}</td>
-    <td>{{ contact.birth_date|date:"jS F Y" }}</td>
-    <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
-    {% for key, value in contact.extra.items %}
-    <td>{{ key}}: {{ value }}</td>
-    {% endfor %}
-  </tr>
-  {% endfor %}
-</table>
+<div class="table-responsive mt-4">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">#</th>
+        <th scope="col">Name</th>
+        <th scope="col">Description</th>
+        <th scope="col">Birthdate</th>
+        <th scope="col">Update</th>
+      </tr>
+    </thead>
+    <tbody class="table-group-divider">
+      {% for contact in contacts %}
+      <tr>
+        <th scope="row">1</th>
+        <td><a href="{% url 'contact-detail' contact.slug %}">{{ contact.title }}</a></td>
+        <td>{{ contact.description }}</td>
+        <td>{{ contact.birth_date|date:"jS F Y" }}</td>
+        <td><a href="{% url 'contact-update' contact.slug %}">Update</td>
+        {% for key, value in contact.extra.items %}
+        <td>{{ key}}: {{ value }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-<p><a href="{% url 'contact-create' %}">Create a new contact</a></p>
+<p><a class="btn btn-outline-primary my-4" href="{% url 'contact-create' %}" role="button">Create a new contact</a></p>
+{% endblock %}

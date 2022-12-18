@@ -1,17 +1,30 @@
-<p><a href="{% url 'contact-list' %}">&larr; All Contacts</a></p>
+{% extends 'crm/base.html' %}
+
+
+{% block content %}
+<a class="btn btn-outline-primary btn-sm my-4" href="{% url 'contact-list' %}" role="button">&larr; All Contacts</a>
 
 <h1>{{ contact.title }}</h1>
 
-<p>{{ contact.description }}</p>
+<h2>Base fields</h2>
 
-<p>Birth Date: {{ contact.birth_date|date:"jS F Y" }}
+
+<dl class="row">
+  <dt class="col-sm-1">Description</dt>
+  <dd class="col-sm-11">{{ contact.description }}</dd>
+
+  <dt class="col-sm-1">Birth Date</dt>
+  <dd class="col-sm-11">{{ contact.birth_date|date:"jS F Y" }}</dd>
+</dl>
 
 <h2>Extra fields</h2>
 
-<ul>
+<dl class="row">
   {% for key, value in contact.extra.items %}
-  <li>{{ key}}: {{ value }}</li>
+  <dt class="col-sm-1">{{ key }}</dt>
+  <dd class="col-sm-11">{{ value }}</dd>
   {% endfor %}
-</ul>
+</dl>
 
-<p><a href="{% url 'contact-update' contact.slug %}">Update</a></p>
+<p><a class="btn btn-outline-primary mt-4" href="{% url 'contact-update' contact.slug %}" role="button">Update</a></p>
+{% endblock %}
