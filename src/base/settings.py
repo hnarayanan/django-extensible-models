@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "django_extensions",
     "crm",
+    "products",
 ]
 
 SITE_ID = 1

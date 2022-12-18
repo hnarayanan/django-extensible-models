@@ -12,15 +12,10 @@ class BaseModel(TitleSlugDescriptionModel, ActivatorModel):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    portal = models.ForeignKey(
-        Site,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-    )
+    portals = models.ManyToManyField(Site)
 
     class Meta:
-        abstract = True    
+        abstract = True
 
-    # site =
     # modified_by =
+    # extra = JSONField()
