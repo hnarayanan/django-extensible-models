@@ -1,0 +1,11 @@
+<h1>{{ contact.title }}</h1>
+
+<p>{{ contact.description }}</p>
+
+<h2>Extra fields</h2>
+
+<ul>
+  {% for key, value in contact.extra.items %}
+  <li>{{ key}}: {{ value }}</li>
+  {% endfor %}
+</ul>
