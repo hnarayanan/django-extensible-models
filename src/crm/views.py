@@ -23,9 +23,8 @@ class ContactDetailView(DetailView):
 
 class ContactCreateView(CreateView):
 
-    template_name = "crm/contact-create.html"
     form_class = ContactForm
-    success_url = "/contacts/create/"
+    template_name = "crm/contact-create.html"
 
     def get_success_url(self):
         return reverse("contact-detail", args=(self.object.slug,))
