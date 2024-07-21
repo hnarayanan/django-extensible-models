@@ -1,32 +1,35 @@
-from django.db import models
-from django.core.exceptions import ValidationError
-from django.contrib.contenttypes.models import ContentType
-from django.conf import settings
-from django.apps import apps
-
 import jsonschema
 
-
-def get_tenant_model():
-    try:
-        return apps.get_model(settings.EXTENSIBLE_MODELS_TENANT_MODEL)
-    except AttributeError:
-        raise ImproperlyConfigured(
-            "EXTENSIBLE_MODELS_TENANT_MODEL must be set in settings"
-        )
+from django.db import models
+from django.db.models import F, Q, UniqueConstraint
+from django.core.exceptions import ValidationError
+from django.contrib.contenttypes.models import ContentType
+from .utils import get_tenant_model, get_tenant_field
 
 
 class ExtensionSchema(models.Model):
-
     schema = models.JSONField()
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    tenant = models.ForeignKey(get_tenant_model(), on_delete=models.CASCADE)
     version = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("content_type", "tenant", "version")
+        constraints = [
+            UniqueConstraint(
+                fields=['content_type', 'version'],
+                condition=Q(**{get_tenant_field(): F(get_tenant_field())}),
+                name='unique_content_type_tenant_version'
+            )
+        ]
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        tenant_field_name = get_tenant_field()
+        tenant_model = get_tenant_model()
+        cls.add_to_class(
+            tenant_field_name, models.ForeignKey(tenant_model, on_delete=models.CASCADE)
+        )
 
     def clean(self):
         super().clean()
@@ -37,9 +40,11 @@ class ExtensionSchema(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk:  # New schema
+            tenant_field_name = get_tenant_field()
             max_version = (
                 ExtensionSchema.objects.filter(
-                    content_type=self.content_type, tenant=self.tenant
+                    content_type=self.content_type,
+                    **{tenant_field_name: getattr(self, tenant_field_name)},
                 ).aggregate(models.Max("version"))["version__max"]
                 or 0
             )
@@ -47,11 +52,14 @@ class ExtensionSchema(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Schema v{self.version} for {self.content_type} (Tenant: {self.tenant})"
+        tenant_field_name = get_tenant_field()
+        tenant_value = getattr(self, tenant_field_name)
+        return (
+            f"Schema v{self.version} for {self.content_type} (Tenant: {tenant_value})"
+        )
 
 
 class ExtensibleModelMixin(models.Model):
-
     extended_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -73,7 +81,9 @@ class ExtensibleModelMixin(models.Model):
         tenant = self.get_tenant()
         content_type = ContentType.objects.get_for_model(self.__class__)
         return (
-            ExtensionSchema.objects.filter(content_type=content_type, tenant=tenant)
+            ExtensionSchema.objects.filter(
+                content_type=content_type, **{get_tenant_field(): tenant}
+            )
             .order_by("-version")
             .first()
         )
@@ -94,7 +104,9 @@ class ExtensibleModelMixin(models.Model):
     def get_latest_schema(cls, tenant):
         content_type = ContentType.objects.get_for_model(cls)
         return (
-            ExtensionSchema.objects.filter(content_type=content_type, tenant=tenant)
+            ExtensionSchema.objects.filter(
+                content_type=content_type, **{get_tenant_field(): tenant}
+            )
             .order_by("-version")
             .first()
         )
