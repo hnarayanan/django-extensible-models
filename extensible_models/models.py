@@ -37,7 +37,6 @@ class ExtensionSchema(models.Model):
     schema = models.JSONField()
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     version = models.PositiveIntegerField(default=1)
-    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -57,16 +56,36 @@ class ExtensionSchema(models.Model):
 
     def save(self, *args, **kwargs):
         tenant_field_name = get_tenant_field()
-        if not self.pk:  # New schema
-            max_version = (
-                ExtensionSchema.objects.filter(
-                    content_type=self.content_type,
-                    **{tenant_field_name: getattr(self, tenant_field_name)},
-                ).aggregate(models.Max("version"))["version__max"]
-                or 0
-            )
-            self.version = max_version + 1
+        tenant = getattr(self, tenant_field_name)
+
+        if self.pk:
+            # Existing schema
+            old_schema = ExtensionSchema.objects.get(pk=self.pk)
+            if self.schema != old_schema.schema:
+                # Schema has changed, increment version
+                self.version = self.get_next_version(tenant)
+        else:
+            # New schema
+            self.version = self.get_next_version(tenant)
+
+        # Validate the schema
+        try:
+            jsonschema.Draft7Validator.check_schema(self.schema)
+        except jsonschema.exceptions.SchemaError as e:
+            raise ValidationError(f"Invalid JSON Schema: {e}")
+
         super().save(*args, **kwargs)
+
+    def get_next_version(self, tenant):
+        tenant_field_name = get_tenant_field()
+        max_version = (
+            ExtensionSchema.objects.filter(
+                content_type=self.content_type,
+                **{tenant_field_name: tenant},
+            ).aggregate(models.Max("version"))["version__max"]
+            or 0
+        )
+        return max_version + 1
 
     def __str__(self):
         tenant_field_name = get_tenant_field()
