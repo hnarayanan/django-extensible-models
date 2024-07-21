@@ -3,8 +3,8 @@ import jsonschema
 from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
-from .models import ExtensionSchema
 
+from .models import ExtensionSchema
 from .utils import get_tenant_field
 
 
@@ -35,10 +35,21 @@ class ExtensibleModelFormMixin:
         if not self.extension_schema:
             return
 
-        for field_name, field_schema in self.extension_schema.schema.get("properties", {}).items():
+        for field_name, field_schema in self.extension_schema.schema.get(
+            "properties", {}
+        ).items():
             field = self._create_form_field(field_name, field_schema)
             if field:
                 self.fields[field_name] = field
+
+        # Ensure the form's _meta attribute includes the dynamically added fields
+        if hasattr(self, "_meta") and hasattr(self._meta, "fields"):
+            if isinstance(self._meta.fields, tuple):
+                self._meta.fields = list(self._meta.fields)
+            if self._meta.fields is not None:
+                for field in self.fields.keys():
+                    if field not in self._meta.fields:
+                        self._meta.fields.append(field)
 
     def _create_form_field(self, field_name, field_schema):
         field_type = field_schema.get("type")

@@ -1,111 +1,146 @@
 from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import FieldError
 
 from .models import ExtensionSchema
 from .utils import get_tenant_field
-from .forms import ExtensibleModelFormMixin
 
 
 class ExtensibleModelAdminMixin:
-    """
-    Mixin to extend admin functionalities for models using the ExtensionSchema.
-    """
-
-    def get_form(self, request, obj=None, **kwargs):
-        """
-        Overrides get_form to include ExtensibleModelFormMixin dynamically.
-        """
-        form = super().get_form(request, obj, **kwargs)
-        # Ensure the dynamically generated form class name is unique
-        form_class_name = f"ExtensibleModelAdminForm_{self.model.__name__}"
-        return type(form_class_name, (ExtensibleModelFormMixin, form), {})
-
     def get_fieldsets(self, request, obj=None):
-        """
-        Overrides get_fieldsets to include extended fields from the extension schema.
-        """
-        fieldsets = super().get_fieldsets(request, obj)
-        if obj:
-            extension_schema = self._get_extension_schema(obj)
-            if extension_schema:
-                extended_fields = list(
-                    extension_schema.schema.get("properties", {}).keys()
+        print("get_fieldsets called in ExtensibleModelAdminMixin")
+        if not hasattr(self, "_cached_fieldsets"):
+            original_fieldsets = super().get_fieldsets(request, obj)
+            self._cached_fieldsets = self._get_fieldsets_with_extensions(
+                request, obj, original_fieldsets
+            )
+        return self._cached_fieldsets
+
+    def _get_fieldsets_with_extensions(self, request, obj, original_fieldsets):
+        fieldsets = list(original_fieldsets)
+        extended_fields = self._get_extended_fields(obj)
+        if extended_fields:
+            existing_fields = set(
+                field for fs in fieldsets for field in fs[1]["fields"]
+            )
+            new_extended_fields = [
+                f for f in extended_fields if f not in existing_fields
+            ]
+            if new_extended_fields:
+                fieldsets.append(
+                    (
+                        "Extended Fields",
+                        {"fields": new_extended_fields + ["get_schema_version"]},
+                    )
                 )
-                fieldsets = list(fieldsets) + [
-                    ("Extended Fields", {"fields": extended_fields})
-                ]
         return fieldsets
 
-    def get_readonly_fields(self, request, obj=None):
-        """
-        Overrides get_readonly_fields to include schema_version if an object is provided.
-        """
-        readonly_fields = super().get_readonly_fields(request, obj)
+    def _get_extended_fields(self, obj):
         if obj:
             extension_schema = self._get_extension_schema(obj)
             if extension_schema:
-                readonly_fields = list(readonly_fields) + ["schema_version"]
-        return readonly_fields
+                return list(extension_schema.schema.get("properties", {}).keys())
+        return []
+
+    def get_form(self, request, obj=None, **kwargs):
+        print("get_form called in ExtensibleModelAdminMixin")
+        extended_fields = self._get_extended_fields(obj)
+        fields = kwargs.get("fields")
+        if fields:
+            kwargs["fields"] = [
+                f
+                for f in fields
+                if f not in extended_fields and f != "get_schema_version"
+            ]
+
+        try:
+            form = super().get_form(request, obj, **kwargs)
+        except FieldError as e:
+            error_fields = (
+                str(e).split("Unknown field(s) (")[1].split(")")[0].split(", ")
+            )
+            if "fields" in kwargs:
+                kwargs["fields"] = [
+                    f
+                    for f in kwargs["fields"]
+                    if f not in error_fields and f != "get_schema_version"
+                ]
+            form = super().get_form(request, obj, **kwargs)
+
+        if extended_fields:
+            for field in extended_fields:
+                if field not in form.base_fields:
+                    form.base_fields[field] = self._create_form_field(field, obj)
+
+        return form
+
+    def _create_form_field(self, field_name, obj):
+        from django import forms
+
+        extension_schema = self._get_extension_schema(obj)
+        field_schema = extension_schema.schema["properties"][field_name]
+
+        if field_schema["type"] == "string":
+            return forms.CharField(
+                label=field_schema.get("title", field_name),
+                help_text=field_schema.get("description", ""),
+                required=field_name in extension_schema.schema.get("required", []),
+            )
+        elif field_schema["type"] == "number":
+            return forms.FloatField(
+                label=field_schema.get("title", field_name),
+                help_text=field_schema.get("description", ""),
+                required=field_name in extension_schema.schema.get("required", []),
+            )
+        elif field_schema["type"] == "boolean":
+            return forms.BooleanField(
+                label=field_schema.get("title", field_name),
+                help_text=field_schema.get("description", ""),
+                required=field_name in extension_schema.schema.get("required", []),
+            )
+        elif field_schema["type"] == "integer":
+            return forms.IntegerField(
+                label=field_schema.get("title", field_name),
+                help_text=field_schema.get("description", ""),
+                required=field_name in extension_schema.schema.get("required", []),
+            )
+        return forms.CharField(label=field_name)
 
     def _get_extension_schema(self, obj):
-        """
-        Retrieves the latest extension schema for the given object.
-        """
-        tenant = self._get_tenant(obj)
-        if not tenant:
-            return None
-
         content_type = ContentType.objects.get_for_model(obj.__class__)
+        tenant_field = get_tenant_field()
         return (
             ExtensionSchema.objects.filter(
-                content_type=content_type, **{get_tenant_field(): tenant}
+                content_type=content_type, **{tenant_field: getattr(obj, tenant_field)}
             )
             .order_by("-version")
             .first()
         )
 
-    def _get_tenant(self, obj):
-        """
-        Retrieves the tenant for the given object using the configured tenant field.
-        """
-        tenant_field = get_tenant_field()
-        return getattr(obj, tenant_field, None)
+    def get_readonly_fields(self, request, obj=None):
+        print("get_readonly_fields called in ExtensibleModelAdminMixin")
+        readonly_fields = super().get_readonly_fields(request, obj)
+        return list(readonly_fields) + ["get_schema_version"]
+
+    def get_schema_version(self, obj):
+        extension_schema = self._get_extension_schema(obj)
+        return extension_schema.version if extension_schema else "N/A"
+
+    get_schema_version.short_description = "Schema Version"
 
     def save_model(self, request, obj, form, change):
-        """
-        Overrides save_model to set the schema version for new objects.
-        """
-        if not change:  # New object
-            tenant = self._get_tenant(obj)
-            if tenant:
-                extension_schema = self._get_extension_schema(obj)
-                if extension_schema:
-                    obj.schema_version = extension_schema.version
+        for field in self._get_extended_fields(obj):
+            if field in form.cleaned_data:
+                obj.extended_fields[field] = form.cleaned_data[field]
         super().save_model(request, obj, form, change)
-
-    def save_related(self, request, form, formsets, change):
-        """
-        Overrides save_related to save extended fields.
-        """
-        super().save_related(request, form, formsets, change)
-        if hasattr(form, "cleaned_data") and "extended_fields" in form.cleaned_data:
-            form.instance.extended_fields = form.cleaned_data["extended_fields"]
-            form.instance.save()
 
 
 class ExtensionSchemaAdmin(admin.ModelAdmin):
-    """
-    Admin class for ExtensionSchema model.
-    """
-
     list_display = ("content_type", get_tenant_field(), "version", "created_at")
     list_filter = ("content_type", get_tenant_field())
     readonly_fields = ("version",)
 
     def save_model(self, request, obj, form, change):
-        """
-        Overrides save_model to automatically set the version number for new schemas.
-        """
         tenant_field = get_tenant_field()
         if not change:  # New schema
             obj.version = (
@@ -118,5 +153,5 @@ class ExtensionSchemaAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-# Register the model with the admin site
+# Register ExtensionSchema admin
 admin.site.register(ExtensionSchema, ExtensionSchemaAdmin)

@@ -21,13 +21,15 @@ def setup_extension_schema():
 
     tenant_field_name = get_tenant_field()
     tenant_model = get_tenant_model()
-    ExtensionSchema = import_string('extensible_models.models.ExtensionSchema')
+    ExtensionSchema = import_string("extensible_models.models.ExtensionSchema")
 
-    ExtensionSchema.add_to_class(tenant_field_name, models.ForeignKey(tenant_model, on_delete=models.CASCADE))
+    ExtensionSchema.add_to_class(
+        tenant_field_name, models.ForeignKey(tenant_model, on_delete=models.CASCADE)
+    )
     ExtensionSchema._meta.constraints.append(
         UniqueConstraint(
-            fields=['content_type', 'version', tenant_field_name],
-            name=f'unique_content_type_{tenant_field_name}_version'
+            fields=["content_type", "version", tenant_field_name],
+            name=f"unique_content_type_{tenant_field_name}_version",
         )
     )
 
@@ -48,6 +50,9 @@ class ExtensionSchema(models.Model):
         constraints = []
 
     def clean(self):
+        """
+        Validates the JSON schema.
+        """
         super().clean()
         try:
             jsonschema.Draft7Validator.check_schema(self.schema)
@@ -68,15 +73,15 @@ class ExtensionSchema(models.Model):
             # New schema
             self.version = self.get_next_version(tenant)
 
-        # Validate the schema
-        try:
-            jsonschema.Draft7Validator.check_schema(self.schema)
-        except jsonschema.exceptions.SchemaError as e:
-            raise ValidationError(f"Invalid JSON Schema: {e}")
+        # Validate the schema before saving
+        self.clean()
 
         super().save(*args, **kwargs)
 
     def get_next_version(self, tenant):
+        """
+        Returns the next version number for the given tenant.
+        """
         tenant_field_name = get_tenant_field()
         max_version = (
             ExtensionSchema.objects.filter(
@@ -88,10 +93,12 @@ class ExtensionSchema(models.Model):
         return max_version + 1
 
     def __str__(self):
+        tenant_model = get_tenant_model()
+        tenant_name = tenant_model._meta.verbose_name.capitalize()
         tenant_field_name = get_tenant_field()
         tenant_value = getattr(self, tenant_field_name)
         return (
-            f"Schema v{self.version} for {self.content_type} (Tenant: {tenant_value})"
+            f"Schema v{self.version} for {self.content_type} ({tenant_name}: {tenant_value})"
         )
 
 
