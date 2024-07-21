@@ -1,0 +1,127 @@
+* Django Extensible Models
+
+Django offers a really robust model system that functions as a great
+interface to store and retrieve data related to your app. Models in
+Django are backed by tables in a relational database. While this is
+really good for correctness, it is quite rigid in terms of the shape
+of data that is stored. Sometimes, you run into use-cases that demand
+a bit more dynamism during the running of your Django app.
+
+Let's take a concrete example. You have an existing Django SaaS app
+that's launched to many happy customers. They are happy, but each
+customer feels that if they could store /just a little bit more custom
+data/ as part of their usage of your app, their workflows would be
+much smoother. So they ask you to add what they want. The trouble is,
+each customer is interested in augmenting their data in different
+ways. You diligently add the first customer's fields. And then
+another's. And then even more. And before you know it, things get
+really messy.
+
+Solving this problem is the point of this project. Instead of
+individually catering to each of their requests, /Django Extensible
+Models/ offers you a general extension mechanism that allows your models
+to grow with your customers' needs.
+
+* Features
+
+** It's easy to incrementally add this to your app
+
+With a relatively small change to your existing model code (see
+[[#usage][Usage]]), you now have a Django model that retains all its Django
+goodness, and can be extended on the fly with additional fields at
+runtime.
+
+** Formal schema for extended fields
+
+We don't just stuff the extra data for these additional fields into a
+~JSONField~ and call it a day,[fn::What sort of operation do you think
+this is?] we allow you to define a proper schema for this data (using
+[[https://jsonschema.net][JSON Schema]]).
+
+** Different extended schema for different groups of objects
+
+It wouldn't make much sense to apply the same extension schema to all
+objects of your model,[fn::You could just update the Python model code
+of your app instead!] so Django Extensible Models allows you to define
+different extended fields for different sets of objects.
+
+We also allow you to extended individual objects in unique ways if
+that is what you need.
+
+** Strong validation of data for these extended fields
+
+With a good schema defined, it is easy to validate that incoming data
+for your extended fields match your expectations before storing it in
+the database.
+
+** Ability to query these fields using an ORM-friendly syntax
+
+The data for your extended fields is not simply stored in a messy,
+impenetrable blob. It is stored in a structured [[https://docs.djangoproject.com/en/dev/ref/models/fields/#jsonfield][JSONField]] that can be
+queried in a systematic way using standard Django syntax.
+
+** TODO Dynamically generated forms for these extended fields in the Django Admin interface
+** DONE Dynamic extensions for these fields in Django Model Forms (and Crispy Forms)
+** TODO Dynamic extensions for these fields in for Django Rest Framework
+** TODO Dynamic extensions for these fields in Django (Rest Framework) Filters
+
+** TODO Migrations between versions of your extended schema!
+
+Taken together, you should be able to use your extended fields much
+like how you use your native Django model fields. And this is just
+cool.
+
+* TODO Installation
+
+* Usage
+:PROPERTIES:
+:CUSTOM_ID: usage
+:END:
+
+You download the code in this repository (by using the big green
+`Code` button on this project‘s GitHub page) and navigate into it.
+
+When in the folder, do the following:
+
+#+BEGIN_SRC shell
+python -m venv venv
+source venv/bin/activate
+cd src
+./manage.py runserver
+#+END_SRC
+
+And then go visit
+[[http://localhost:8000/contacts/][http://localhost:8000/contacts/]] to
+see the app in practice. If you want to access the Django admin, head
+to [[http://localhost:8000/admin/][http://localhost:8000/admin/]] and
+use the credentials `username: harish, password: harish`.
+
+** Basic Usage
+
+** Advanced Usage
+
+* How does it work?
+
+The main idea is that every Model you want extended is now augmented
+with two new `JSONField`s: `extra` and `extra_schema`. `extra_schema`
+contains a schema that follows the [JSON
+Schema](https://json-schema.org) specification. This is used to
+auto-generate forms, handle validation, auto-generate Django Rest
+Framework Serializers, ...
+
+This idea generally handles most cases except migrations that I am
+continuing to think about. If you have any ideas, do let me know.
+
+The main idea is that every Model you want extended is now augmented
+with two new `JSONField`s: `extra` and `extra_schema`. `extra_schema`
+contains a schema that follows the [JSON
+Schema](https://json-schema.org) specification. This is used to
+auto-generate forms, handle validation, auto-generate Django Rest
+Framework Serializers, ...
+
+* Copyright and License
+
+Copyright (c) 2022-2024 [[https://harishnarayanan.org][Harish Narayanan]]
+
+This code is licenced under the MIT Licence. See [[https://github.com/hnarayanan/django-extensible-models-experiment/blob/main/LICENSE][LICENSE]] for the full
+text of this licence.
