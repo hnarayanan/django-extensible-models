@@ -1,0 +1,2 @@
+* Prop testing (using Hypothesis) for JSON-form-field-set-and-back
+* See what can be leveraged from the Django migrations framework for use in the JSON schema migrations
