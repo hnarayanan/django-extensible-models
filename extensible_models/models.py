@@ -1,13 +1,21 @@
 import jsonschema
 
 from django.db import models
-from django.db.models import F, Q, UniqueConstraint
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
-from .utils import get_tenant_model, get_tenant_field
+
+from .utils import get_tenant_field, get_tenant_model
 
 
-class ExtensionSchema(models.Model):
+class ExtensionSchemaMeta(models.base.ModelBase):
+
+    def __new__(cls, name, bases, attrs):
+        new_class = super().__new__(cls, name, bases, attrs)
+        return new_class
+
+
+class ExtensionSchema(models.Model, metaclass=ExtensionSchemaMeta):
+
     schema = models.JSONField()
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     version = models.PositiveIntegerField(default=1)
@@ -15,21 +23,9 @@ class ExtensionSchema(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [
-            UniqueConstraint(
-                fields=['content_type', 'version'],
-                condition=Q(**{get_tenant_field(): F(get_tenant_field())}),
-                name='unique_content_type_tenant_version'
-            )
-        ]
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        tenant_field_name = get_tenant_field()
-        tenant_model = get_tenant_model()
-        cls.add_to_class(
-            tenant_field_name, models.ForeignKey(tenant_model, on_delete=models.CASCADE)
-        )
+        # This model is augmented with a tenant field and
+        # corresponding constraint in ExtensionSchemeMeta.
+        constraints = []
 
     def clean(self):
         super().clean()
@@ -39,8 +35,8 @@ class ExtensionSchema(models.Model):
             raise ValidationError(f"Invalid JSON Schema: {e}")
 
     def save(self, *args, **kwargs):
+        tenant_field_name = get_tenant_field()
         if not self.pk:  # New schema
-            tenant_field_name = get_tenant_field()
             max_version = (
                 ExtensionSchema.objects.filter(
                     content_type=self.content_type,
@@ -60,6 +56,7 @@ class ExtensionSchema(models.Model):
 
 
 class ExtensibleModelMixin(models.Model):
+
     extended_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
