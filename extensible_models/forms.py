@@ -1,11 +1,15 @@
+import jsonschema
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
-from .models import ExtensionSchema, get_tenant_model
-import jsonschema
+from .models import ExtensionSchema
+
+from .utils import get_tenant_field
 
 
 class ExtensibleModelFormMixin:
+
     def __init__(self, *args, **kwargs):
         self.tenant = kwargs.pop("tenant", None)
         super().__init__(*args, **kwargs)
@@ -17,9 +21,10 @@ class ExtensibleModelFormMixin:
             return self.instance.get_extension_schema()
         elif self.tenant:
             content_type = ContentType.objects.get_for_model(self._meta.model)
+            tenant_field = get_tenant_field()
             return (
                 ExtensionSchema.objects.filter(
-                    content_type=content_type, tenant=self.tenant
+                    content_type=content_type, **{tenant_field: self.tenant}
                 )
                 .order_by("-version")
                 .first()
@@ -30,9 +35,7 @@ class ExtensibleModelFormMixin:
         if not self.extension_schema:
             return
 
-        for field_name, field_schema in self.extension_schema.schema.get(
-            "properties", {}
-        ).items():
+        for field_name, field_schema in self.extension_schema.schema.get("properties", {}).items():
             field = self._create_form_field(field_name, field_schema)
             if field:
                 self.fields[field_name] = field
