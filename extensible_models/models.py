@@ -3,18 +3,36 @@ import jsonschema
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import UniqueConstraint
+from django.utils.module_loading import import_string
 
 from .utils import get_tenant_field, get_tenant_model
 
 
-class ExtensionSchemaMeta(models.base.ModelBase):
+def setup_extension_schema():
+    """
+    This function dynamically adds the tenant field and uniqueness
+    constraint to the ExtensionSchema model.
 
-    def __new__(cls, name, bases, attrs):
-        new_class = super().__new__(cls, name, bases, attrs)
-        return new_class
+    This function is called in the AppConfig.ready() method (in
+    apps.py) to ensure that app registry is fully populated before the
+    model is adjusted.
+    """
+
+    tenant_field_name = get_tenant_field()
+    tenant_model = get_tenant_model()
+    ExtensionSchema = import_string('extensible_models.models.ExtensionSchema')
+
+    ExtensionSchema.add_to_class(tenant_field_name, models.ForeignKey(tenant_model, on_delete=models.CASCADE))
+    ExtensionSchema._meta.constraints.append(
+        UniqueConstraint(
+            fields=['content_type', 'version', tenant_field_name],
+            name=f'unique_content_type_{tenant_field_name}_version'
+        )
+    )
 
 
-class ExtensionSchema(models.Model, metaclass=ExtensionSchemaMeta):
+class ExtensionSchema(models.Model):
 
     schema = models.JSONField()
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
@@ -23,8 +41,11 @@ class ExtensionSchema(models.Model, metaclass=ExtensionSchemaMeta):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # This model is augmented with a tenant field and
-        # corresponding constraint in ExtensionSchemeMeta.
+        """
+        The empty constraint below is dynamically updated when
+        setup_extension_schema() is called in AppConfig.ready().
+        """
+
         constraints = []
 
     def clean(self):
