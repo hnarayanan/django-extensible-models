@@ -35,9 +35,9 @@ to grow with your customers' needs.
 ** DONE It's easy to incrementally add this to your app
 
 With a relatively small change to your existing model code (see
-[[#usage][Usage]]), you now have a Django model that retains all its Django
-goodness, and can be extended on the fly with additional fields at
-runtime.
+[[#installation][Installation]] and [[#usage][Usage]]), you now have a Django model that retains all
+its Django goodness, and can be extended on the fly with additional
+fields at runtime.
 
 ** DONE Formal schema for extended fields
 
@@ -80,6 +80,9 @@ like how you use your native Django model fields. And this is just
 cool.
 
 * Installation
+:PROPERTIES:
+:CUSTOM_ID: installation
+:END:
 #+BEGIN_SRC shell
 pip install django-extensible-models
 #+END_SRC
@@ -95,7 +98,6 @@ INSTALLED_APPS = [
 EXTENSIBLE_MODELS_TENANT_MODEL = "your_app.YourTenantModel"
 EXTENSIBLE_MODELS_TENANT_FIELD = "your_tenant_field_name"
 #+END_SRC
-
 * Usage
 :PROPERTIES:
 :CUSTOM_ID: usage
@@ -110,8 +112,9 @@ from extensible_models.models import ExtensibleModelMixin
 class ExampleModel(ExtensibleModelMixin, models.Model):
 
     ...
+#+END_SRC
 
-
+#+BEGIN_SRC python
 # admin.py
 from django.contrib import admin
 
@@ -121,10 +124,7 @@ from extensible_models.admin import ExtensibleModelAdminMixin
 class ExampleModelAdmin(ExtensibleModelAdminMixin, admin.ModelAdmin):
 
     # Leave all your existing configuration as is!
-
 #+END_SRC
-
-
 * Copyright and License
 
 Copyright (c) 2022-2024 [[https://harishnarayanan.org][Harish Narayanan]]
