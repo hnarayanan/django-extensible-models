@@ -1,138 +1,137 @@
 from django.contrib import admin
+from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldError
+
 
 from .models import ExtensionSchema
 from .utils import get_tenant_field
 
 
 class ExtensibleModelAdminMixin:
-    def get_fieldsets(self, request, obj=None):
-        print("get_fieldsets called in ExtensibleModelAdminMixin")
-        if not hasattr(self, "_cached_fieldsets"):
-            original_fieldsets = super().get_fieldsets(request, obj)
-            self._cached_fieldsets = self._get_fieldsets_with_extensions(
-                request, obj, original_fieldsets
-            )
-        return self._cached_fieldsets
 
-    def _get_fieldsets_with_extensions(self, request, obj, original_fieldsets):
-        fieldsets = list(original_fieldsets)
-        extended_fields = self._get_extended_fields(obj)
-        if extended_fields:
-            existing_fields = set(
-                field for fs in fieldsets for field in fs[1]["fields"]
-            )
-            new_extended_fields = [
-                f for f in extended_fields if f not in existing_fields
-            ]
-            if new_extended_fields:
-                fieldsets.append(
-                    (
-                        "Extended Fields",
-                        {"fields": new_extended_fields + ["get_schema_version"]},
-                    )
-                )
-        return fieldsets
+    def get_form(self, request, obj=None, **kwargs):
+        print(f"get_form called with obj: {obj}")  # Debug print
 
-    def _get_extended_fields(self, obj):
         if obj:
             extension_schema = self._get_extension_schema(obj)
             if extension_schema:
-                return list(extension_schema.schema.get("properties", {}).keys())
-        return []
-
-    def get_form(self, request, obj=None, **kwargs):
-        print("get_form called in ExtensibleModelAdminMixin")
-        extended_fields = self._get_extended_fields(obj)
-        fields = kwargs.get("fields")
-        if fields:
-            kwargs["fields"] = [
-                f
-                for f in fields
-                if f not in extended_fields and f != "get_schema_version"
-            ]
+                # Remove extended fields from kwargs to prevent FieldError
+                extended_fields = list(
+                    extension_schema.schema.get("properties", {}).keys()
+                )
+                fields = kwargs.get("fields")
+                if fields:
+                    kwargs["fields"] = [f for f in fields if f not in extended_fields]
 
         try:
-            form = super().get_form(request, obj, **kwargs)
-        except FieldError as e:
-            error_fields = (
-                str(e).split("Unknown field(s) (")[1].split(")")[0].split(", ")
-            )
-            if "fields" in kwargs:
-                kwargs["fields"] = [
-                    f
-                    for f in kwargs["fields"]
-                    if f not in error_fields and f != "get_schema_version"
+            FormClass = super().get_form(request, obj, **kwargs)
+        except FieldError:
+            # If FieldError is raised, try again with no fields specified
+            kwargs.pop("fields", None)
+            FormClass = super().get_form(request, obj, **kwargs)
+
+        if obj and extension_schema:
+
+            class ExtendedForm(FormClass):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    for field_name, field_schema in extension_schema.schema.get(
+                        "properties", {}
+                    ).items():
+                        if field_name not in self.fields:
+                            self.fields[field_name] = self._create_form_field(
+                                field_name, field_schema
+                            )
+                        # Initialize the field with existing data
+                        if obj.extended_data and field_name in obj.extended_data:
+                            self.initial[field_name] = obj.extended_data[field_name]
+
+                @staticmethod
+                def _create_form_field(field_name, field_schema):
+                    # Move the _create_form_field method here
+                    return self._create_form_field(field_name, field_schema)
+
+            print(
+                f"Form created with fields: {list(ExtendedForm().fields.keys())}"
+            )  # Debug print
+            return ExtendedForm
+
+        print(
+            f"Form created with fields: {list(FormClass().fields.keys())}"
+        )  # Debug print
+        return FormClass
+
+    def _create_form_field(self, field_name, field_schema):
+        field_type = field_schema.get("type")
+        field_args = {
+            "required": field_name in field_schema.get("required", []),
+            "label": field_schema.get("title", field_name),
+            "help_text": field_schema.get("description", ""),
+        }
+
+        if field_type == "string":
+            return forms.CharField(**field_args)
+        elif field_type == "number":
+            return forms.FloatField(**field_args)
+        elif field_type == "integer":
+            return forms.IntegerField(**field_args)
+        elif field_type == "boolean":
+            return forms.BooleanField(**field_args)
+        return forms.CharField(**field_args)
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj:
+            extension_schema = self._get_extension_schema(obj)
+            if extension_schema:
+                extended_fields = list(
+                    extension_schema.schema.get("properties", {}).keys()
+                )
+                # Remove extended fields from the default fieldset
+                default_fields = [
+                    f for f in fieldsets[0][1]["fields"] if f not in extended_fields
                 ]
-            form = super().get_form(request, obj, **kwargs)
-
-        if extended_fields:
-            for field in extended_fields:
-                if field not in form.base_fields:
-                    form.base_fields[field] = self._create_form_field(field, obj)
-
-        return form
-
-    def _create_form_field(self, field_name, obj):
-        from django import forms
-
-        extension_schema = self._get_extension_schema(obj)
-        field_schema = extension_schema.schema["properties"][field_name]
-
-        if field_schema["type"] == "string":
-            return forms.CharField(
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                required=field_name in extension_schema.schema.get("required", []),
-            )
-        elif field_schema["type"] == "number":
-            return forms.FloatField(
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                required=field_name in extension_schema.schema.get("required", []),
-            )
-        elif field_schema["type"] == "boolean":
-            return forms.BooleanField(
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                required=field_name in extension_schema.schema.get("required", []),
-            )
-        elif field_schema["type"] == "integer":
-            return forms.IntegerField(
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                required=field_name in extension_schema.schema.get("required", []),
-            )
-        return forms.CharField(label=field_name)
+                fieldsets[0][1]["fields"] = default_fields
+                # Add extended fields as a separate fieldset
+                fieldsets.append(("Extended Fields", {"fields": extended_fields}))
+        return fieldsets
 
     def _get_extension_schema(self, obj):
         content_type = ContentType.objects.get_for_model(obj.__class__)
-        tenant_field = get_tenant_field()
+        from extensible_models.models import ExtensionSchema
+
         return (
-            ExtensionSchema.objects.filter(
-                content_type=content_type, **{tenant_field: getattr(obj, tenant_field)}
-            )
+            ExtensionSchema.objects.filter(content_type=content_type, portal=obj.portal)
             .order_by("-version")
             .first()
         )
 
-    def get_readonly_fields(self, request, obj=None):
-        print("get_readonly_fields called in ExtensibleModelAdminMixin")
-        readonly_fields = super().get_readonly_fields(request, obj)
-        return list(readonly_fields) + ["get_schema_version"]
-
-    def get_schema_version(self, obj):
-        extension_schema = self._get_extension_schema(obj)
-        return extension_schema.version if extension_schema else "N/A"
-
-    get_schema_version.short_description = "Schema Version"
-
     def save_model(self, request, obj, form, change):
-        for field in self._get_extended_fields(obj):
-            if field in form.cleaned_data:
-                obj.extended_fields[field] = form.cleaned_data[field]
+        print(f"save_model called for obj: {obj}")  # Debug print
+        extension_schema = self._get_extension_schema(obj)
+        if extension_schema:
+            extended_data = {}
+            for field_name in extension_schema.schema.get("properties", {}).keys():
+                if field_name in form.cleaned_data:
+                    extended_data[field_name] = form.cleaned_data[field_name]
+            obj.extended_data = extended_data
+            print(f"Extended data being saved: {extended_data}")  # Debug print
         super().save_model(request, obj, form, change)
+        print(f"Object saved. Extended data: {obj.extended_data}")  # Debug print
+
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj)
+        if obj:
+            extension_schema = self._get_extension_schema(obj)
+            if extension_schema:
+                extended_fields = list(
+                    extension_schema.schema.get("properties", {}).keys()
+                )
+                fields = [
+                    f for f in fields if f not in extended_fields
+                ] + extended_fields
+        return fields
 
 
 class ExtensionSchemaAdmin(admin.ModelAdmin):
