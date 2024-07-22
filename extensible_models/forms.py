@@ -53,52 +53,31 @@ class ExtensibleModelFormMixin:
 
     def _create_form_field(self, field_name, field_schema):
         field_type = field_schema.get("type")
+        field_args = {
+            "required": field_name in self.extension_schema.schema.get("required", []),
+            "label": field_schema.get("title", field_name),
+            "help_text": field_schema.get("description", ""),
+        }
+
         if field_type == "string":
-            return forms.CharField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                max_length=field_schema.get("maxLength"),
-            )
+            return forms.CharField(max_length=field_schema.get("maxLength"), **field_args)
         elif field_type == "number":
-            return forms.FloatField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-            )
+            return forms.FloatField(min_value=field_schema.get("minimum"), max_value=field_schema.get("maximum"), **field_args)
         elif field_type == "integer":
-            return forms.IntegerField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-            )
+            return forms.IntegerField(min_value=field_schema.get("minimum"), max_value=field_schema.get("maximum"), **field_args)
         elif field_type == "boolean":
-            return forms.BooleanField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                label=field_schema.get("title", field_name),
-                help_text=field_schema.get("description", ""),
-            )
+            return forms.BooleanField(**field_args)
         elif field_type == "array":
-            return forms.CharField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                label=field_schema.get("title", field_name),
-                help_text=f"{field_schema.get('description', '')} (Enter items separated by commas)",
-                widget=forms.Textarea,
-            )
-        # Add more field types as needed
+            return forms.CharField(widget=forms.Textarea, **field_args)
         return None
 
     def clean(self):
         cleaned_data = super().clean()
         if self.extension_schema:
-            extended_fields = {
-                field_name: cleaned_data.get(field_name)
-                for field_name in self.extension_schema.schema.get("properties", {})
-            }
+            extended_fields = {}
+            for field_name in self.extension_schema.schema.get("properties", {}):
+                if field_name in cleaned_data:
+                    extended_fields[field_name] = cleaned_data.pop(field_name)
             try:
                 jsonschema.validate(
                     instance=extended_fields, schema=self.extension_schema.schema
@@ -110,8 +89,8 @@ class ExtensibleModelFormMixin:
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        if self.extension_schema:
-            instance.extended_fields = self.cleaned_data["extended_fields"]
+        if hasattr(self, "cleaned_data") and "extended_fields" in self.cleaned_data:
+            instance.extended_data.update(self.cleaned_data["extended_fields"])
         if commit:
             instance.save()
         return instance

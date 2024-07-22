@@ -144,6 +144,10 @@ class ExtensibleModelMixin(models.Model):
             except jsonschema.exceptions.ValidationError as e:
                 raise ValidationError(f"Extended data validation error: {e}")
 
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     @classmethod
     def get_latest_schema(cls, tenant):
         content_type = ContentType.objects.get_for_model(cls)
