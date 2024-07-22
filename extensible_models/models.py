@@ -73,9 +73,6 @@ class ExtensionSchema(models.Model):
             # New schema
             self.version = self.get_next_version(tenant)
 
-        if not self.extended_data:
-            self.extended_data = {}
-
         # Validate the schema before saving
         self.clean()
 

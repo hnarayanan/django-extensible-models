@@ -54,6 +54,8 @@ class ExtensibleModelFormMixin:
     def _create_form_field(self, field_name, field_schema):
         field_type = field_schema.get("type")
         choices = field_schema.get("enum")
+        items = field_schema.get("items")
+
         field_args = {
             "required": field_name in self.extension_schema.schema.get("required", []),
             "label": field_schema.get("title", field_name),
@@ -63,6 +65,9 @@ class ExtensibleModelFormMixin:
         if choices:
             field_args["choices"] = [(choice, choice) for choice in choices]
             return forms.ChoiceField(**field_args)
+        elif items and items.get("enum"):
+            field_args["choices"] = [(item, item) for item in items["enum"]]
+            return forms.MultipleChoiceField(**field_args)
 
         if field_type == "string":
             return forms.CharField(max_length=field_schema.get("maxLength"), **field_args)
