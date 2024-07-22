@@ -27,10 +27,10 @@ class ExtensibleModelAdminMixin:
         extension_schema = self._get_extension_schema(obj)
 
         class ExtendedForm(FormClass):
-            extended_data_json = forms.CharField(
+            extended_data = forms.CharField(
                 widget=forms.Textarea(attrs={"readonly": "readonly"}),
                 required=False,
-                help_text="JSON representation of extended data.",
+                help_text="Extended data",
             )
 
             def __init__(self, *args, **kwargs):
@@ -58,10 +58,8 @@ class ExtensibleModelAdminMixin:
                     if field_name not in self.fields:
                         self.fields[field_name] = self.base_fields[field_name]
 
-                if obj and obj.extended_data:
-                    self.initial["extended_data_json"] = json.dumps(
-                        obj.extended_data, indent=2
-                    )
+                # if obj and obj.extended_data:
+                #     self.fields["extended_data"].initial = self.initial["extended_data"]
 
             def clean(self):
                 cleaned_data = super().clean()
@@ -114,7 +112,8 @@ class ExtensibleModelAdminMixin:
             extended_fields = list(extension_schema.schema.get("properties", {}).keys())
             fieldsets.append(("Extended Fields", {"fields": extended_fields}))
 
-        fieldsets.append(("Meta", {"fields": ["extended_data_json"]}))
+        if obj and obj.extended_data and obj.extended_data != {}:
+            fieldsets.append(("Meta", {"fields": ["extended_data"], "classes": ("collapse",)}))
 
         return fieldsets
 
@@ -153,7 +152,7 @@ class ExtensibleModelAdminMixin:
 
     def get_readonly_fields(self, request, obj=None):
         readonly_fields = super().get_readonly_fields(request, obj)
-        return list(readonly_fields) + ["extended_data_json"] if obj and obj.extended_data else readonly_fields
+        return list(readonly_fields) + ["extended_data"] if obj and obj.extended_data else readonly_fields
 
 
 class ExtensionSchemaAdmin(admin.ModelAdmin):
