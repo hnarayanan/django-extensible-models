@@ -53,11 +53,16 @@ class ExtensibleModelFormMixin:
 
     def _create_form_field(self, field_name, field_schema):
         field_type = field_schema.get("type")
+        choices = field_schema.get("enum")
         field_args = {
             "required": field_name in self.extension_schema.schema.get("required", []),
             "label": field_schema.get("title", field_name),
             "help_text": field_schema.get("description", ""),
         }
+
+        if choices:
+            field_args["choices"] = [(choice, choice) for choice in choices]
+            return forms.ChoiceField(**field_args)
 
         if field_type == "string":
             return forms.CharField(max_length=field_schema.get("maxLength"), **field_args)
@@ -78,6 +83,8 @@ class ExtensibleModelFormMixin:
             for field_name in self.extension_schema.schema.get("properties", {}):
                 if field_name in cleaned_data:
                     extended_fields[field_name] = cleaned_data.pop(field_name)
+                elif field_name in self.extension_schema.schema.get("required", []):
+                    self.add_error(field_name, f"{field_name} is required.")
             try:
                 jsonschema.validate(
                     instance=extended_fields, schema=self.extension_schema.schema

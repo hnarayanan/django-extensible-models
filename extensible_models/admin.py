@@ -70,7 +70,8 @@ class ExtensibleModelAdminMixin:
                     for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
                         if field_name in cleaned_data:
                             extended_data[field_name] = cleaned_data.pop(field_name)
-
+                        elif field_name in self.extension_schema.schema.get("required", []):
+                            self.add_error(field_name, f"{field_name} is required.")
                     try:
                         jsonschema.validate(instance=extended_data, schema=self.extension_schema.schema)
                     except jsonschema.exceptions.ValidationError as e:
@@ -84,11 +85,16 @@ class ExtensibleModelAdminMixin:
     @staticmethod
     def _create_form_field(field_name, field_schema):
         field_type = field_schema.get("type")
+        choices = field_schema.get("enum")
         field_args = {
             "required": field_name in field_schema.get("required", []),
             "label": field_schema.get("title", field_name),
             "help_text": field_schema.get("description", ""),
         }
+
+        if choices:
+           field_args["choices"] = [(choice, choice) for choice in choices]
+           return forms.ChoiceField(**field_args)
 
         if field_type == "string":
             return forms.CharField(**field_args)
@@ -128,6 +134,8 @@ class ExtensibleModelAdminMixin:
     def save_model(self, request, obj, form, change):
         if 'extended_data' in form.cleaned_data:
             obj.extended_data = form.cleaned_data['extended_data']
+        elif obj.extended_data is None:
+            obj.extended_data = {}
         super().save_model(request, obj, form, change)
 
     def get_fields(self, request, obj=None):

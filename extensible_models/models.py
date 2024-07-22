@@ -73,6 +73,9 @@ class ExtensionSchema(models.Model):
             # New schema
             self.version = self.get_next_version(tenant)
 
+        if not self.extended_data:
+            self.extended_data = {}
+
         # Validate the schema before saving
         self.clean()
 
@@ -145,6 +148,8 @@ class ExtensibleModelMixin(models.Model):
                 raise ValidationError(f"Extended data validation error: {e}")
 
     def save(self, *args, **kwargs):
+        if self.extended_data is None:
+            self.extended_data = {}
         self.clean()
         super().save(*args, **kwargs)
 
