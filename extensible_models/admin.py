@@ -1,10 +1,10 @@
-import json
 import jsonschema
 
 from django.contrib import admin
 from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
+
 
 from .models import ExtensionSchema
 from .utils import get_tenant_field
@@ -23,7 +23,6 @@ class ExtensibleModelAdminMixin:
             original_kwargs["fields"] = original_fields
 
         FormClass = super().get_form(request, obj, **original_kwargs)
-
         extension_schema = self._get_extension_schema(obj)
 
         class ExtendedForm(FormClass):
@@ -36,46 +35,39 @@ class ExtensibleModelAdminMixin:
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.extension_schema = extension_schema
+
                 for field_name in original_fields:
                     if field_name not in self.fields:
                         self.fields[field_name] = self.base_fields[field_name]
+
                 if self.extension_schema:
-                    for field_name, field_schema in self.extension_schema.schema.get(
-                        "properties", {}
-                    ).items():
-                        self.fields[field_name] = (
-                            ExtensibleModelAdminMixin._create_form_field(
-                                field_name, field_schema
-                            )
-                        )
-                        if (
-                            obj
-                            and obj.extended_data
-                            and field_name in obj.extended_data
-                        ):
-                            self.initial[field_name] = obj.extended_data[field_name]
+                    for field_name, field_schema in self.extension_schema.schema.get("properties", {}).items():
+                        self.fields[field_name] = ExtensibleModelAdminMixin._create_form_field(field_name, field_schema)
+                        if self.instance and self.instance.extended_data and field_name in self.instance.extended_data:
+                            self.initial[field_name] = self.instance.extended_data[field_name]
+
                 for field_name in self.base_fields:
                     if field_name not in self.fields:
                         self.fields[field_name] = self.base_fields[field_name]
 
-                # if obj and obj.extended_data:
-                #     self.fields["extended_data"].initial = self.initial["extended_data"]
-
             def clean(self):
                 cleaned_data = super().clean()
+                self.cleaned_extended_data = {}
                 if self.extension_schema:
-                    extended_data = {}
                     for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
                         if field_name in cleaned_data:
-                            extended_data[field_name] = cleaned_data.pop(field_name)
-                        elif field_name in self.extension_schema.schema.get("required", []):
-                            self.add_error(field_name, f"{field_name} is required.")
-                    try:
-                        jsonschema.validate(instance=extended_data, schema=self.extension_schema.schema)
-                    except jsonschema.exceptions.ValidationError as e:
-                        raise ValidationError(f"Extended data validation error: {e}")
+                            value = cleaned_data[field_name]
+                            if field_schema.get('type') == 'array' and isinstance(value, list):
+                                value = [v for v in value if v]  # Remove empty values
+                                if not value:
+                                    continue  # Skip empty arrays
+                            self.cleaned_extended_data[field_name] = value
 
-                    cleaned_data['extended_data'] = extended_data
+                    if self.instance.pk:  # Only validate on update
+                        try:
+                            jsonschema.validate(instance=self.cleaned_extended_data, schema=self.extension_schema.schema)
+                        except jsonschema.exceptions.ValidationError as e:
+                            raise ValidationError(f"Extended data validation error: {str(e)}")
                 return cleaned_data
 
         return ExtendedForm
@@ -121,7 +113,8 @@ class ExtensibleModelAdminMixin:
 
         return fieldsets
 
-    def _get_extension_schema(self, obj):
+
+    def _get_extension_schema(self, obj, request=None):
         if obj and hasattr(obj, get_tenant_field()):
             content_type = ContentType.objects.get_for_model(obj.__class__)
             return (
@@ -132,14 +125,39 @@ class ExtensibleModelAdminMixin:
                 .order_by("-version")
                 .first()
             )
+        elif hasattr(self, 'model') and request:
+            tenant = self._get_tenant_from_request(request)
+            if tenant:
+                return self.model.get_latest_schema(tenant)
         return None
 
     def save_model(self, request, obj, form, change):
-        if 'extended_data' in form.cleaned_data:
-            obj.extended_data = form.cleaned_data['extended_data']
-        elif obj.extended_data is None:
+        if not change:  # This is a creation
             obj.extended_data = {}
+        if hasattr(form, 'cleaned_extended_data'):
+            obj.extended_data.update(form.cleaned_extended_data)
         super().save_model(request, obj, form, change)
+
+    def _get_tenant_from_request(self, request):
+
+        tenant_field = get_tenant_field()
+
+        if hasattr(request, tenant_field):
+            return getattr(request, tenant_field)
+        if hasattr(request.user, tenant_field):
+            return getattr(request.user, tenant_field)
+
+        raise NotImplementedError(f"Unable to find '{tenant_field}' in request or user. Implement _get_tenant_from_request in your admin class to handle your specific tenant retrieval logic.")
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+        extension_schema = self._get_extension_schema(None)  # Pass None as we don't have an object yet
+
+        if extension_schema:
+            field_schema = extension_schema.schema.get('properties', {}).get(db_field.name, {})
+            if field_schema.get('type') == 'array' and 'items' in field_schema:
+                formfield.required = False  # Make array fields non-required
+        return formfield
 
     def get_fields(self, request, obj=None):
         fields = super().get_fields(request, obj)
