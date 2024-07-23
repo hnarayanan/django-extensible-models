@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 
 
 from .models import ExtensionSchema
-from .utils import get_tenant_field
+from .utils import get_tenant_field, create_form_field, validate_extended_data
 
 
 class ExtensibleModelAdminMixin:
@@ -44,10 +44,8 @@ class ExtensibleModelAdminMixin:
                     for field_name, field_schema in self.extension_schema.schema.get(
                         "properties", {}
                     ).items():
-                        self.fields[field_name] = (
-                            ExtensibleModelAdminMixin._create_form_field(
-                                field_name, field_schema
-                            )
+                        self.fields[field_name] = create_form_field(
+                            field_name, field_schema
                         )
                         if (
                             self.instance
@@ -65,6 +63,7 @@ class ExtensibleModelAdminMixin:
             def clean(self):
                 cleaned_data = super().clean()
                 self.cleaned_extended_data = {}
+                missing_required_fields = []
                 is_update = self.instance.pk is not None
 
                 # If it's not an update and there's no extension schema, skip everything
@@ -75,6 +74,8 @@ class ExtensibleModelAdminMixin:
                     for field_name, field_schema in self.extension_schema.schema.get(
                         "properties", {}
                     ).items():
+                        if field_name in self.extension_schema.schema.get("required", []) and not cleaned_data.get(field_name):
+                            missing_required_fields.append(field_name)
                         if field_name in cleaned_data:
                             value = cleaned_data[field_name]
 
@@ -87,52 +88,19 @@ class ExtensibleModelAdminMixin:
                             elif value is not None:
                                 self.cleaned_extended_data[field_name] = value
 
-                    # Only validate if it's an update
-                    if is_update:
-                        try:
-                            jsonschema.validate(
-                                instance=self.cleaned_extended_data,
-                                schema=self.extension_schema.schema,
-                            )
-                        except jsonschema.exceptions.ValidationError as e:
-                            raise ValidationError(
-                                f"Extended data validation error: {str(e)}"
-                            )
+                    if missing_required_fields:
+                        raise ValidationError({field: f"{field} is required." for field in missing_required_fields})
+
+                    # Validate for both creation and update
+                    validate_extended_data(
+                        self.cleaned_extended_data,
+                        self.extension_schema.schema,
+                        is_creation=not is_update
+                    )
 
                 return cleaned_data
 
         return ExtendedForm
-
-    @staticmethod
-    def _create_form_field(field_name, field_schema):
-        field_type = field_schema.get("type")
-        choices = field_schema.get("enum")
-        items = field_schema.get("items")
-        field_args = {
-            "required": field_name in field_schema.get("required", []),
-            "label": field_schema.get("title", field_name),
-            "help_text": field_schema.get("description", ""),
-        }
-
-        if choices:
-            field_args["choices"] = [(choice, choice) for choice in choices]
-            return forms.ChoiceField(**field_args)
-        elif field_type == "array" and items and items.get("enum"):
-            field_args["choices"] = [(item, item) for item in items["enum"]]
-            field_args["required"] = False  # Make array fields non-required in the form
-            return forms.MultipleChoiceField(
-                widget=forms.CheckboxSelectMultiple, **field_args
-            )
-
-        if field_type == "string":
-            return forms.CharField(**field_args)
-        elif field_type == "number":
-            return forms.FloatField(**field_args)
-        elif field_type == "integer":
-            return forms.IntegerField(**field_args)
-        elif field_type == "boolean":
-            return forms.BooleanField(**field_args)
-        return forms.CharField(**field_args)
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = list(super().get_fieldsets(request, obj))

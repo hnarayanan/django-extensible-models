@@ -1,11 +1,7 @@
-import jsonschema
-
-from django import forms
-from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 
 from .models import ExtensionSchema
-from .utils import get_tenant_field
+from .utils import get_tenant_field, create_form_field, validate_extended_data
 
 
 class ExtensibleModelFormMixin:
@@ -38,7 +34,7 @@ class ExtensibleModelFormMixin:
         for field_name, field_schema in self.extension_schema.schema.get(
             "properties", {}
         ).items():
-            field = self._create_form_field(field_name, field_schema)
+            field = create_form_field(field_name, field_schema)
             if field:
                 self.fields[field_name] = field
 
@@ -51,46 +47,6 @@ class ExtensibleModelFormMixin:
                     if field not in self._meta.fields:
                         self._meta.fields.append(field)
 
-    def _create_form_field(self, field_name, field_schema):
-        field_type = field_schema.get("type")
-        choices = field_schema.get("enum")
-        items = field_schema.get("items")
-
-        field_args = {
-            "required": field_name in self.extension_schema.schema.get("required", []),
-            "label": field_schema.get("title", field_name),
-            "help_text": field_schema.get("description", ""),
-        }
-
-        if choices:
-            field_args["choices"] = [(choice, choice) for choice in choices]
-            return forms.ChoiceField(**field_args)
-        elif items and items.get("enum"):
-            field_args["choices"] = [(item, item) for item in items["enum"]]
-            return forms.MultipleChoiceField(**field_args)
-
-        if field_type == "string":
-            return forms.CharField(
-                max_length=field_schema.get("maxLength"), **field_args
-            )
-        elif field_type == "number":
-            return forms.FloatField(
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-                **field_args,
-            )
-        elif field_type == "integer":
-            return forms.IntegerField(
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-                **field_args,
-            )
-        elif field_type == "boolean":
-            return forms.BooleanField(**field_args)
-        elif field_type == "array":
-            return forms.CharField(widget=forms.Textarea, **field_args)
-        return None
-
     def clean(self):
         cleaned_data = super().clean()
         if self.extension_schema:
@@ -98,14 +54,13 @@ class ExtensibleModelFormMixin:
             for field_name in self.extension_schema.schema.get("properties", {}):
                 if field_name in cleaned_data:
                     extended_fields[field_name] = cleaned_data.pop(field_name)
-                elif field_name in self.extension_schema.schema.get("required", []):
-                    self.add_error(field_name, f"{field_name} is required.")
-            try:
-                jsonschema.validate(
-                    instance=extended_fields, schema=self.extension_schema.schema
-                )
-            except jsonschema.exceptions.ValidationError as e:
-                raise ValidationError(f"Extended fields validation error: {e}")
+
+            validate_extended_data(
+                instance=extended_fields,
+                schema=self.extension_schema.schema,
+                is_creation=not self.instance.pk,
+            )
+
             cleaned_data["extended_fields"] = extended_fields
         return cleaned_data
 

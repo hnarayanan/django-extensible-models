@@ -6,7 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import UniqueConstraint
 from django.utils.module_loading import import_string
 
-from .utils import get_tenant_field, get_tenant_model
+from .utils import get_tenant_field, get_tenant_model, validate_extended_data
 
 
 def setup_extension_schema():
@@ -138,29 +138,14 @@ class ExtensibleModelMixin(models.Model):
     def validate_extended_data(self):
         schema = self.get_extension_schema()
         if schema and self.extended_data:
-            try:
-                # Create a copy of the schema
-                validation_schema = schema.schema.copy()
-
-                # Remove 'required' from the schema copy
-                validation_schema.pop("required", None)
-
-                # Remove 'minItems' from array properties
-                for prop in validation_schema.get("properties", {}).values():
-                    if prop.get("type") == "array":
-                        prop.pop("minItems", None)
-
-                # Validate only the fields that are present in extended_data
-                instance_to_validate = {
-                    k: v
-                    for k, v in self.extended_data.items()
-                    if k in validation_schema.get("properties", {})
-                }
-                jsonschema.validate(
-                    instance=instance_to_validate, schema=validation_schema
-                )
-            except jsonschema.exceptions.ValidationError as e:
-                raise ValidationError(f"Extended data validation error: {e}")
+            instance_to_validate = {
+                k: v
+                for k, v in self.extended_data.items()
+                if k in schema.schema.get("properties", {})
+            }
+            validate_extended_data(
+                instance_to_validate, schema.schema, is_creation=not self.pk
+            )
 
     def save(self, *args, **kwargs):
         if self.extended_data is None:
