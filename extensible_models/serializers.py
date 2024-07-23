@@ -1,138 +1,122 @@
-import jsonschema
 from rest_framework import serializers
-
 from django.core.exceptions import ValidationError
-from django.contrib.contenttypes.models import ContentType
-from django.conf import settings
+from django.utils.dateparse import parse_date, parse_time, parse_datetime
 
-from .models import ExtensionSchema, get_tenant_model
+from .utils import get_tenant_field, validate_extended_data
 
 
-class ExtensibleModelSerializerMixin:
+class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.tenant = self.get_tenant()
+        self.tenant = self._get_tenant()
         self.extension_schema = self._get_extension_schema()
         self._add_extended_fields()
 
-    @classmethod
-    def get_tenant_model(cls):
-        return get_tenant_model()
-
-    @classmethod
-    def get_tenant_field_name(cls):
-        return getattr(settings, "EXTENSIBLE_MODELS_TENANT_FIELD", "tenant")
-
-    def get_tenant(self):
-        request = self.context.get("request")
-        if request and hasattr(request, "tenant"):
-            return request.tenant
-
+    def _get_tenant(self):
+        request = self.context.get('request')
+        tenant_field = get_tenant_field()
+        if request and hasattr(request, tenant_field):
+            return getattr(request, tenant_field)
         if self.instance:
-            tenant_field = self.get_tenant_field_name()
-            return getattr(self.instance, tenant_field, None)
-
+            return getattr(self.instance, tenant_field)
         return None
 
     def _get_extension_schema(self):
         if not self.tenant:
             return None
-
-        content_type = ContentType.objects.get_for_model(self.Meta.model)
-        return (
-            ExtensionSchema.objects.filter(
-                content_type=content_type, tenant=self.tenant
-            )
-            .order_by("-version")
-            .first()
-        )
+        return self.Meta.model.get_latest_schema(self.tenant)
 
     def _add_extended_fields(self):
         if not self.extension_schema:
             return
+        for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
+            self.fields[field_name] = self._create_dynamic_field(field_name, field_schema)
 
-        for field_name, field_schema in self.extension_schema.schema.get(
-            "properties", {}
-        ).items():
-            self.fields[field_name] = self._create_serializer_field(
-                field_name, field_schema
-            )
+    def _create_dynamic_field(self, field_name, field_schema):
+        field_type = field_schema.get('type')
+        field_args = {
+            'required': field_name in self.extension_schema.schema.get('required', []),
+            'allow_null': not field_schema.get('required', False),
+            'label': field_schema.get('title', field_name),
+            'help_text': field_schema.get('description', ''),
+        }
 
-    def _create_serializer_field(self, field_name, field_schema):
-        field_type = field_schema.get("type")
-        if field_type == "string":
-            return serializers.CharField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                allow_null=not field_schema.get("required", False),
-                max_length=field_schema.get("maxLength"),
-            )
-        elif field_type == "number":
-            return serializers.FloatField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                allow_null=not field_schema.get("required", False),
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-            )
-        elif field_type == "integer":
-            return serializers.IntegerField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                allow_null=not field_schema.get("required", False),
-                min_value=field_schema.get("minimum"),
-                max_value=field_schema.get("maximum"),
-            )
-        elif field_type == "boolean":
-            return serializers.BooleanField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                allow_null=not field_schema.get("required", False),
-            )
-        elif field_type == "array":
-            return serializers.ListField(
-                required=field_name in self.extension_schema.schema.get("required", []),
-                allow_null=not field_schema.get("required", False),
-                child=serializers.JSONField(),
-            )
-        # TODO: Add more field types
-        return serializers.JSONField(
-            required=False, allow_null=True
-        )  # Default to JSONField for unknown types
+        if field_type == 'string':
+            if field_schema.get('format') == 'date':
+                return serializers.DateField(**field_args)
+            elif field_schema.get('format') == 'time':
+                return serializers.TimeField(**field_args)
+            elif field_schema.get('format') == 'date-time':
+                return serializers.DateTimeField(**field_args)
+            elif field_schema.get('format') == 'email':
+                return serializers.EmailField(**field_args)
+            elif field_schema.get('format') == 'uri':
+                return serializers.URLField(**field_args)
+            else:
+                return serializers.CharField(**field_args)
+        elif field_type == 'number':
+            return serializers.FloatField(**field_args)
+        elif field_type == 'integer':
+            return serializers.IntegerField(**field_args)
+        elif field_type == 'boolean':
+            return serializers.BooleanField(**field_args)
+        elif field_type == 'array':
+            return serializers.ListField(**field_args)
+
+        return serializers.JSONField(**field_args)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        extended_fields = getattr(instance, "extended_fields", {})
-        ret.update(extended_fields)
+        if hasattr(instance, 'extended_data'):
+            ret.update(instance.extended_data)
         return ret
 
     def to_internal_value(self, data):
-        internal_value = super().to_internal_value(data)
+        ret = super().to_internal_value(data)
         if self.extension_schema:
-            extended_fields = {}
-            for field_name in self.extension_schema.schema.get("properties", {}):
+            extended_data = {}
+            for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
                 if field_name in data:
-                    extended_fields[field_name] = data[field_name]
-
+                    value = data[field_name]
+                    if field_schema.get('type') == 'string':
+                        if field_schema.get('format') == 'date':
+                            value = parse_date(value)
+                        elif field_schema.get('format') == 'time':
+                            value = parse_time(value)
+                        elif field_schema.get('format') == 'date-time':
+                            value = parse_datetime(value)
+                    extended_data[field_name] = value
             try:
-                jsonschema.validate(
-                    instance=extended_fields, schema=self.extension_schema.schema
-                )
-            except jsonschema.exceptions.ValidationError as e:
-                raise serializers.ValidationError(
-                    f"Extended fields validation error: {e}"
-                )
+                validate_extended_data(extended_data, self.extension_schema.schema)
+            except ValidationError as e:
+                raise serializers.ValidationError({"extended_data": str(e)})
 
-            internal_value["extended_fields"] = extended_fields
-        return internal_value
+            ret['extended_data'] = extended_data
+        return ret
 
     def create(self, validated_data):
-        extended_fields = validated_data.pop("extended_fields", {})
+        extended_data = validated_data.pop('extended_data', {})
         instance = super().create(validated_data)
-        instance.extended_fields = extended_fields
-        instance.save()
+        if extended_data:
+            instance.extended_data = extended_data
+            instance.save()
         return instance
 
     def update(self, instance, validated_data):
-        extended_fields = validated_data.pop("extended_fields", {})
+        extended_data = validated_data.pop('extended_data', {})
         instance = super().update(instance, validated_data)
-        instance.extended_fields.update(extended_fields)
-        instance.save()
+        if extended_data:
+            instance.extended_data.update(extended_data)
+            instance.save()
         return instance
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.extension_schema:
+            extended_data = attrs.get('extended_data', {})
+            try:
+                validate_extended_data(extended_data, self.extension_schema.schema)
+            except ValidationError as e:
+                raise serializers.ValidationError({"extended_data": str(e)})
+        return attrs
