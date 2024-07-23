@@ -72,7 +72,6 @@ queried in a systematic way using standard Django syntax.
 ** TODO Dynamic extensions for these fields in Django Model Forms (and Crispy Forms)
 ** TODO Dynamic extensions for these fields in for Django Rest Framework
 ** TODO Dynamic extensions for these fields in Django (Rest Framework) Filters
-
 ** TODO Migrations between versions of your extended schema!
 
 Taken together, you should be able to use your extended fields much
