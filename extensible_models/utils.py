@@ -62,44 +62,66 @@ def create_form_field(field_name, field_schema):
 
     if choices:
         field_args["choices"] = [(choice, choice) for choice in choices]
-        return forms.ChoiceField(widget=forms.Select(attrs={'class': 'select2'}), **field_args)
+        return forms.ChoiceField(
+            widget=forms.Select(attrs={"class": "select2"}), **field_args
+        )
     elif field_type == "array" and items and items.get("enum"):
         field_args["choices"] = [(item, item) for item in items["enum"]]
         return forms.MultipleChoiceField(
-            widget=forms.CheckboxSelectMultiple(attrs={'class': 'checkbox-inline'}), **field_args
+            widget=forms.CheckboxSelectMultiple(attrs={"class": "checkbox-inline"}),
+            **field_args,
         )
 
     if field_type == "string":
         if field_schema.get("format") == "date":
-            return forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), **field_args)
+            return forms.DateField(
+                widget=forms.DateInput(attrs={"type": "date"}), **field_args
+            )
         elif field_schema.get("format") == "time":
-            return forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}), **field_args)
+            return forms.TimeField(
+                widget=forms.TimeInput(attrs={"type": "time"}), **field_args
+            )
         elif field_schema.get("format") == "date-time":
-            return forms.DateTimeField(widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}), **field_args)
+            return forms.DateTimeField(
+                widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+                **field_args,
+            )
         elif field_schema.get("format") == "email":
             field_args["validators"] = [EmailValidator()]
-            return forms.EmailField(widget=forms.EmailInput(attrs={'autocomplete': 'email'}), **field_args)
+            return forms.EmailField(
+                widget=forms.EmailInput(attrs={"autocomplete": "email"}), **field_args
+            )
         elif field_schema.get("format") == "uri":
             field_args["validators"] = [URLValidator()]
-            return forms.URLField(widget=forms.URLInput(attrs={'autocomplete': 'url'}), **field_args)
+            return forms.URLField(
+                widget=forms.URLInput(attrs={"autocomplete": "url"}), **field_args
+            )
         else:
-            return forms.CharField(max_length=field_schema.get("maxLength"),
-                                   widget=forms.TextInput(attrs={'class': 'form-control'}), **field_args)
+            return forms.CharField(
+                max_length=field_schema.get("maxLength"),
+                widget=forms.TextInput(attrs={"class": "form-control"}),
+                **field_args,
+            )
     elif field_type == "number":
         return forms.FloatField(
             min_value=field_schema.get("minimum"),
             max_value=field_schema.get("maximum"),
-            widget=forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
-            **field_args
+            widget=forms.NumberInput(attrs={"step": "any", "class": "form-control"}),
+            **field_args,
         )
     elif field_type == "integer":
         return forms.IntegerField(
             min_value=field_schema.get("minimum"),
             max_value=field_schema.get("maximum"),
-            widget=forms.NumberInput(attrs={'class': 'form-control'}),
-            **field_args
+            widget=forms.NumberInput(attrs={"class": "form-control"}),
+            **field_args,
         )
     elif field_type == "boolean":
-        return forms.BooleanField(widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}), **field_args)
+        return forms.BooleanField(
+            widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            **field_args,
+        )
 
-    return forms.CharField(widget=forms.Textarea(attrs={'class': 'form-control'}), **field_args)
+    return forms.CharField(
+        widget=forms.Textarea(attrs={"class": "form-control"}), **field_args
+    )
