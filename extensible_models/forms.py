@@ -70,11 +70,21 @@ class ExtensibleModelFormMixin:
             return forms.MultipleChoiceField(**field_args)
 
         if field_type == "string":
-            return forms.CharField(max_length=field_schema.get("maxLength"), **field_args)
+            return forms.CharField(
+                max_length=field_schema.get("maxLength"), **field_args
+            )
         elif field_type == "number":
-            return forms.FloatField(min_value=field_schema.get("minimum"), max_value=field_schema.get("maximum"), **field_args)
+            return forms.FloatField(
+                min_value=field_schema.get("minimum"),
+                max_value=field_schema.get("maximum"),
+                **field_args,
+            )
         elif field_type == "integer":
-            return forms.IntegerField(min_value=field_schema.get("minimum"), max_value=field_schema.get("maximum"), **field_args)
+            return forms.IntegerField(
+                min_value=field_schema.get("minimum"),
+                max_value=field_schema.get("maximum"),
+                **field_args,
+            )
         elif field_type == "boolean":
             return forms.BooleanField(**field_args)
         elif field_type == "array":

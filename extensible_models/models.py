@@ -97,9 +97,7 @@ class ExtensionSchema(models.Model):
         tenant_name = tenant_model._meta.verbose_name.capitalize()
         tenant_field_name = get_tenant_field()
         tenant_value = getattr(self, tenant_field_name)
-        return (
-            f"Schema v{self.version} for {self.content_type} ({tenant_name}: {tenant_value})"
-        )
+        return f"Schema v{self.version} for {self.content_type} ({tenant_name}: {tenant_value})"
 
 
 class ExtensibleModelMixin(models.Model):
@@ -137,7 +135,6 @@ class ExtensibleModelMixin(models.Model):
         if self.pk:  # Only validate for existing objects
             self.validate_extended_data()
 
-
     def validate_extended_data(self):
         schema = self.get_extension_schema()
         if schema and self.extended_data:
@@ -146,16 +143,22 @@ class ExtensibleModelMixin(models.Model):
                 validation_schema = schema.schema.copy()
 
                 # Remove 'required' from the schema copy
-                validation_schema.pop('required', None)
+                validation_schema.pop("required", None)
 
                 # Remove 'minItems' from array properties
-                for prop in validation_schema.get('properties', {}).values():
-                    if prop.get('type') == 'array':
-                        prop.pop('minItems', None)
+                for prop in validation_schema.get("properties", {}).values():
+                    if prop.get("type") == "array":
+                        prop.pop("minItems", None)
 
                 # Validate only the fields that are present in extended_data
-                instance_to_validate = {k: v for k, v in self.extended_data.items() if k in validation_schema.get('properties', {})}
-                jsonschema.validate(instance=instance_to_validate, schema=validation_schema)
+                instance_to_validate = {
+                    k: v
+                    for k, v in self.extended_data.items()
+                    if k in validation_schema.get("properties", {})
+                }
+                jsonschema.validate(
+                    instance=instance_to_validate, schema=validation_schema
+                )
             except jsonschema.exceptions.ValidationError as e:
                 raise ValidationError(f"Extended data validation error: {e}")
 

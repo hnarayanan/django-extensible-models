@@ -8,4 +8,5 @@ class ExtensibleModelsConfig(AppConfig):
 
     def ready(self):
         from .models import setup_extension_schema
+
         setup_extension_schema()

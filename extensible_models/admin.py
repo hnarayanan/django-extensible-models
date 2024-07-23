@@ -41,10 +41,22 @@ class ExtensibleModelAdminMixin:
                         self.fields[field_name] = self.base_fields[field_name]
 
                 if self.extension_schema:
-                    for field_name, field_schema in self.extension_schema.schema.get("properties", {}).items():
-                        self.fields[field_name] = ExtensibleModelAdminMixin._create_form_field(field_name, field_schema)
-                        if self.instance and self.instance.extended_data and field_name in self.instance.extended_data:
-                            self.initial[field_name] = self.instance.extended_data[field_name]
+                    for field_name, field_schema in self.extension_schema.schema.get(
+                        "properties", {}
+                    ).items():
+                        self.fields[field_name] = (
+                            ExtensibleModelAdminMixin._create_form_field(
+                                field_name, field_schema
+                            )
+                        )
+                        if (
+                            self.instance
+                            and self.instance.extended_data
+                            and field_name in self.instance.extended_data
+                        ):
+                            self.initial[field_name] = self.instance.extended_data[
+                                field_name
+                            ]
 
                 for field_name in self.base_fields:
                     if field_name not in self.fields:
@@ -60,11 +72,13 @@ class ExtensibleModelAdminMixin:
                     return cleaned_data
 
                 if self.extension_schema:
-                    for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
+                    for field_name, field_schema in self.extension_schema.schema.get(
+                        "properties", {}
+                    ).items():
                         if field_name in cleaned_data:
                             value = cleaned_data[field_name]
 
-                            if field_schema.get('type') == 'array':
+                            if field_schema.get("type") == "array":
                                 # For multi-select fields, an empty list means no selection
                                 if isinstance(value, list):
                                     self.cleaned_extended_data[field_name] = value
@@ -76,9 +90,14 @@ class ExtensibleModelAdminMixin:
                     # Only validate if it's an update
                     if is_update:
                         try:
-                            jsonschema.validate(instance=self.cleaned_extended_data, schema=self.extension_schema.schema)
+                            jsonschema.validate(
+                                instance=self.cleaned_extended_data,
+                                schema=self.extension_schema.schema,
+                            )
                         except jsonschema.exceptions.ValidationError as e:
-                            raise ValidationError(f"Extended data validation error: {str(e)}")
+                            raise ValidationError(
+                                f"Extended data validation error: {str(e)}"
+                            )
 
                 return cleaned_data
 
@@ -101,7 +120,9 @@ class ExtensibleModelAdminMixin:
         elif field_type == "array" and items and items.get("enum"):
             field_args["choices"] = [(item, item) for item in items["enum"]]
             field_args["required"] = False  # Make array fields non-required in the form
-            return forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, **field_args)
+            return forms.MultipleChoiceField(
+                widget=forms.CheckboxSelectMultiple, **field_args
+            )
 
         if field_type == "string":
             return forms.CharField(**field_args)
@@ -122,10 +143,11 @@ class ExtensibleModelAdminMixin:
             fieldsets.append(("Extended Fields", {"fields": extended_fields}))
 
         if obj and obj.extended_data and obj.extended_data != {}:
-            fieldsets.append(("Meta", {"fields": ["extended_data"], "classes": ("collapse",)}))
+            fieldsets.append(
+                ("Meta", {"fields": ["extended_data"], "classes": ("collapse",)})
+            )
 
         return fieldsets
-
 
     def _get_extension_schema(self, obj, request=None):
         if obj and hasattr(obj, get_tenant_field()):
@@ -133,12 +155,12 @@ class ExtensibleModelAdminMixin:
             return (
                 ExtensionSchema.objects.filter(
                     content_type=content_type,
-                    **{get_tenant_field(): getattr(obj, get_tenant_field())}
+                    **{get_tenant_field(): getattr(obj, get_tenant_field())},
                 )
                 .order_by("-version")
                 .first()
             )
-        elif hasattr(self, 'model') and request:
+        elif hasattr(self, "model") and request:
             tenant = self._get_tenant_from_request(request)
             if tenant:
                 return self.model.get_latest_schema(tenant)
@@ -147,7 +169,7 @@ class ExtensibleModelAdminMixin:
     def save_model(self, request, obj, form, change):
         if change:
             # This is an update
-            if hasattr(form, 'cleaned_extended_data'):
+            if hasattr(form, "cleaned_extended_data"):
                 # Merge the new data with the existing data
                 for key, value in form.cleaned_extended_data.items():
                     if value is not None and value != []:
@@ -157,8 +179,12 @@ class ExtensibleModelAdminMixin:
                         del obj.extended_data[key]
         else:
             # This is a new object
-            if hasattr(form, 'cleaned_extended_data'):
-                obj.extended_data = {k: v for k, v in form.cleaned_extended_data.items() if v is not None and v != []}
+            if hasattr(form, "cleaned_extended_data"):
+                obj.extended_data = {
+                    k: v
+                    for k, v in form.cleaned_extended_data.items()
+                    if v is not None and v != []
+                }
             else:
                 obj.extended_data = {}
 
@@ -173,15 +199,21 @@ class ExtensibleModelAdminMixin:
         if hasattr(request.user, tenant_field):
             return getattr(request.user, tenant_field)
 
-        raise NotImplementedError(f"Unable to find '{tenant_field}' in request or user. Implement _get_tenant_from_request in your admin class to handle your specific tenant retrieval logic.")
+        raise NotImplementedError(
+            f"Unable to find '{tenant_field}' in request or user. Implement _get_tenant_from_request in your admin class to handle your specific tenant retrieval logic."
+        )
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
-        extension_schema = self._get_extension_schema(None)  # Pass None as we don't have an object yet
+        extension_schema = self._get_extension_schema(
+            None
+        )  # Pass None as we don't have an object yet
 
         if extension_schema:
-            field_schema = extension_schema.schema.get('properties', {}).get(db_field.name, {})
-            if field_schema.get('type') == 'array' and 'items' in field_schema:
+            field_schema = extension_schema.schema.get("properties", {}).get(
+                db_field.name, {}
+            )
+            if field_schema.get("type") == "array" and "items" in field_schema:
                 formfield.required = False  # Make array fields non-required
         return formfield
 
@@ -200,7 +232,11 @@ class ExtensibleModelAdminMixin:
 
     def get_readonly_fields(self, request, obj=None):
         readonly_fields = super().get_readonly_fields(request, obj)
-        return list(readonly_fields) + ["extended_data"] if obj and obj.extended_data else readonly_fields
+        return (
+            list(readonly_fields) + ["extended_data"]
+            if obj and obj.extended_data
+            else readonly_fields
+        )
 
 
 class ExtensionSchemaAdmin(admin.ModelAdmin):
