@@ -74,7 +74,9 @@ class ExtensibleModelAdminMixin:
                     for field_name, field_schema in self.extension_schema.schema.get(
                         "properties", {}
                     ).items():
-                        if field_name in self.extension_schema.schema.get("required", []) and not cleaned_data.get(field_name):
+                        if field_name in self.extension_schema.schema.get(
+                            "required", []
+                        ) and not cleaned_data.get(field_name):
                             missing_required_fields.append(field_name)
                         if field_name in cleaned_data:
                             value = cleaned_data[field_name]
@@ -89,13 +91,18 @@ class ExtensibleModelAdminMixin:
                                 self.cleaned_extended_data[field_name] = value
 
                     if missing_required_fields:
-                        raise ValidationError({field: f"{field} is required." for field in missing_required_fields})
+                        raise ValidationError(
+                            {
+                                field: f"{field} is required."
+                                for field in missing_required_fields
+                            }
+                        )
 
                     # Validate for both creation and update
                     validate_extended_data(
                         self.cleaned_extended_data,
                         self.extension_schema.schema,
-                        is_creation=not is_update
+                        is_creation=not is_update,
                     )
 
                 return cleaned_data
