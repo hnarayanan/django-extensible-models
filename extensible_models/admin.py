@@ -53,21 +53,33 @@ class ExtensibleModelAdminMixin:
             def clean(self):
                 cleaned_data = super().clean()
                 self.cleaned_extended_data = {}
+                is_update = self.instance.pk is not None
+
+                # If it's not an update and there's no extension schema, skip everything
+                if not is_update and not self.extension_schema:
+                    return cleaned_data
+
                 if self.extension_schema:
                     for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
                         if field_name in cleaned_data:
                             value = cleaned_data[field_name]
-                            if field_schema.get('type') == 'array' and isinstance(value, list):
-                                value = [v for v in value if v]  # Remove empty values
-                                if not value:
-                                    continue  # Skip empty arrays
-                            self.cleaned_extended_data[field_name] = value
 
-                    if self.instance.pk:  # Only validate on update
+                            if field_schema.get('type') == 'array':
+                                # For multi-select fields, an empty list means no selection
+                                if isinstance(value, list):
+                                    self.cleaned_extended_data[field_name] = value
+                                elif value:
+                                    self.cleaned_extended_data[field_name] = [value]
+                            elif value is not None:
+                                self.cleaned_extended_data[field_name] = value
+
+                    # Only validate if it's an update
+                    if is_update:
                         try:
                             jsonschema.validate(instance=self.cleaned_extended_data, schema=self.extension_schema.schema)
                         except jsonschema.exceptions.ValidationError as e:
                             raise ValidationError(f"Extended data validation error: {str(e)}")
+
                 return cleaned_data
 
         return ExtendedForm
@@ -86,9 +98,10 @@ class ExtensibleModelAdminMixin:
         if choices:
             field_args["choices"] = [(choice, choice) for choice in choices]
             return forms.ChoiceField(**field_args)
-        elif items and items.get("enum"):
+        elif field_type == "array" and items and items.get("enum"):
             field_args["choices"] = [(item, item) for item in items["enum"]]
-            return forms.MultipleChoiceField(**field_args)
+            field_args["required"] = False  # Make array fields non-required in the form
+            return forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, **field_args)
 
         if field_type == "string":
             return forms.CharField(**field_args)

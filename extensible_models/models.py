@@ -134,7 +134,8 @@ class ExtensibleModelMixin(models.Model):
 
     def clean(self):
         super().clean()
-        self.validate_extended_data()
+        if self.pk:  # Only validate for existing objects
+            self.validate_extended_data()
 
     def validate_extended_data(self):
         schema = self.get_extension_schema()
