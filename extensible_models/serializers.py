@@ -1,20 +1,17 @@
 from rest_framework import serializers
 from django.core.exceptions import ValidationError
 from django.utils.dateparse import parse_date, parse_time, parse_datetime
-
 from .utils import get_tenant_field, validate_extended_data
 
-
 class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
-
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.tenant = self._get_tenant()
+        self.tenant = self._get_tenant(kwargs.get('context', {}))
         self.extension_schema = self._get_extension_schema()
+        super().__init__(*args, **kwargs)
         self._add_extended_fields()
 
-    def _get_tenant(self):
-        request = self.context.get('request')
+    def _get_tenant(self, context):
+        request = context.get('request')
         tenant_field = get_tenant_field()
         if request and hasattr(request, tenant_field):
             return getattr(request, tenant_field)
@@ -53,6 +50,8 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
                 return serializers.EmailField(**field_args)
             elif field_schema.get('format') == 'uri':
                 return serializers.URLField(**field_args)
+            elif 'enum' in field_schema:
+                return serializers.ChoiceField(choices=[(choice, choice) for choice in field_schema['enum']], **field_args)
             else:
                 return serializers.CharField(**field_args)
         elif field_type == 'number':
@@ -62,6 +61,11 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
         elif field_type == 'boolean':
             return serializers.BooleanField(**field_args)
         elif field_type == 'array':
+            if 'items' in field_schema and 'enum' in field_schema['items']:
+                return serializers.MultipleChoiceField(
+                    choices=[(choice, choice) for choice in field_schema['items']['enum']],
+                    **field_args
+                )
             return serializers.ListField(**field_args)
 
         return serializers.JSONField(**field_args)
@@ -69,7 +73,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         if hasattr(instance, 'extended_data'):
-            ret.update(instance.extended_data)
+            ret.update(instance.extended_data or {})
         return ret
 
     def to_internal_value(self, data):
@@ -87,6 +91,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
                         elif field_schema.get('format') == 'date-time':
                             value = parse_datetime(value)
                     extended_data[field_name] = value
+
             try:
                 validate_extended_data(extended_data, self.extension_schema.schema)
             except ValidationError as e:
@@ -107,6 +112,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
         extended_data = validated_data.pop('extended_data', {})
         instance = super().update(instance, validated_data)
         if extended_data:
+            instance.extended_data = instance.extended_data or {}
             instance.extended_data.update(extended_data)
             instance.save()
         return instance
@@ -120,3 +126,10 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
             except ValidationError as e:
                 raise serializers.ValidationError({"extended_data": str(e)})
         return attrs
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.extension_schema:
+            for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
+                fields[field_name] = self._create_dynamic_field(field_name, field_schema)
+        return fields
