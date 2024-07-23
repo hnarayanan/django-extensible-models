@@ -64,7 +64,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
             elif "enum" in field_schema:
                 return serializers.ChoiceField(
                     choices=[(choice, choice) for choice in field_schema["enum"]],
-                    **field_args
+                    **field_args,
                 )
             else:
                 return serializers.CharField(**field_args)
@@ -80,7 +80,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
                     choices=[
                         (choice, choice) for choice in field_schema["items"]["enum"]
                     ],
-                    **field_args
+                    **field_args,
                 )
             return serializers.ListField(**field_args)
 
@@ -96,45 +96,53 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
         ret = super().to_internal_value(data)
         if self.extension_schema:
             extended_data = {}
-            for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
+            for field_name, field_schema in self.extension_schema.schema.get(
+                "properties", {}
+            ).items():
                 if field_name in data:
                     value = data[field_name]
-                    field_type = field_schema.get('type')
+                    field_type = field_schema.get("type")
                     try:
-                        if field_type == 'string':
-                            if field_schema.get('format') == 'date':
+                        if field_type == "string":
+                            if field_schema.get("format") == "date":
                                 value = parse_date(value)
-                            elif field_schema.get('format') == 'time':
+                            elif field_schema.get("format") == "time":
                                 value = parse_time(value)
-                            elif field_schema.get('format') == 'date-time':
+                            elif field_schema.get("format") == "date-time":
                                 value = parse_datetime(value)
-                        elif field_type == 'number':
+                        elif field_type == "number":
                             value = float(value)
-                        elif field_type == 'integer':
+                        elif field_type == "integer":
                             value = int(value)
-                        elif field_type == 'boolean':
+                        elif field_type == "boolean":
                             if isinstance(value, str):
-                                value = value.lower() in ('true', '1', 'yes', 'on')
+                                value = value.lower() in ("true", "1", "yes", "on")
                             else:
                                 value = bool(value)
-                        elif field_type == 'array':
+                        elif field_type == "array":
                             if isinstance(value, str):
                                 try:
                                     value = json.loads(value)
                                 except json.JSONDecodeError:
                                     # If it's not valid JSON, assume it's a single value
-                                    value = [v.strip() for v in value.split(',') if v.strip()]
+                                    value = [
+                                        v.strip() for v in value.split(",") if v.strip()
+                                    ]
                             elif not isinstance(value, list):
                                 # If it's not a list (could be from multi-select form field), make it a list
                                 value = list(value)
                     except (ValueError, json.JSONDecodeError):
-                        raise serializers.ValidationError({field_name: f"Invalid value for {field_schema.get('title', field_name)}"})
+                        raise serializers.ValidationError(
+                            {
+                                field_name: f"Invalid value for {field_schema.get('title', field_name)}"
+                            }
+                        )
                     extended_data[field_name] = value
             try:
                 validate_extended_data(extended_data, self.extension_schema.schema)
             except ValidationError as e:
                 raise serializers.ValidationError({"extended_data": str(e)})
-            ret['extended_data'] = extended_data
+            ret["extended_data"] = extended_data
         return ret
 
     def create(self, validated_data):
@@ -154,7 +162,7 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
         return instance
 
     def update(self, instance, validated_data):
-        extended_data = validated_data.pop('extended_data', {})
+        extended_data = validated_data.pop("extended_data", {})
         instance = super().update(instance, validated_data)
 
         if extended_data:
@@ -169,12 +177,13 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
             instance.extended_data.update(extended_data)
 
             # Use DjangoJSONEncoder when saving to ensure all types are properly serialized
-            instance.extended_data = json.loads(json.dumps(instance.extended_data, cls=DjangoJSONEncoder))
+            instance.extended_data = json.loads(
+                json.dumps(instance.extended_data, cls=DjangoJSONEncoder)
+            )
 
             instance.save()
 
         return instance
-
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
