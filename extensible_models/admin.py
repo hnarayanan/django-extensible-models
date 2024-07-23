@@ -145,10 +145,23 @@ class ExtensibleModelAdminMixin:
         return None
 
     def save_model(self, request, obj, form, change):
-        if not change:  # This is a creation
-            obj.extended_data = {}
-        if hasattr(form, 'cleaned_extended_data'):
-            obj.extended_data.update(form.cleaned_extended_data)
+        if change:
+            # This is an update
+            if hasattr(form, 'cleaned_extended_data'):
+                # Merge the new data with the existing data
+                for key, value in form.cleaned_extended_data.items():
+                    if value is not None and value != []:
+                        obj.extended_data[key] = value
+                    elif key in obj.extended_data:
+                        # Remove the key if the new value is None or an empty list
+                        del obj.extended_data[key]
+        else:
+            # This is a new object
+            if hasattr(form, 'cleaned_extended_data'):
+                obj.extended_data = {k: v for k, v in form.cleaned_extended_data.items() if v is not None and v != []}
+            else:
+                obj.extended_data = {}
+
         super().save_model(request, obj, form, change)
 
     def _get_tenant_from_request(self, request):
