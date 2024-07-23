@@ -1,7 +1,10 @@
+import json
+from datetime import date, datetime
 from rest_framework import serializers
 
 from django.core.exceptions import ValidationError
 from django.utils.dateparse import parse_date, parse_time, parse_datetime
+from django.core.serializers.json import DjangoJSONEncoder
 
 from .utils import get_tenant_field, validate_extended_data
 
@@ -93,44 +96,85 @@ class ExtensibleModelSerializerMixin(serializers.ModelSerializer):
         ret = super().to_internal_value(data)
         if self.extension_schema:
             extended_data = {}
-            for field_name, field_schema in self.extension_schema.schema.get(
-                "properties", {}
-            ).items():
+            for field_name, field_schema in self.extension_schema.schema.get('properties', {}).items():
                 if field_name in data:
                     value = data[field_name]
-                    if field_schema.get("type") == "string":
-                        if field_schema.get("format") == "date":
-                            value = parse_date(value)
-                        elif field_schema.get("format") == "time":
-                            value = parse_time(value)
-                        elif field_schema.get("format") == "date-time":
-                            value = parse_datetime(value)
+                    field_type = field_schema.get('type')
+                    try:
+                        if field_type == 'string':
+                            if field_schema.get('format') == 'date':
+                                value = parse_date(value)
+                            elif field_schema.get('format') == 'time':
+                                value = parse_time(value)
+                            elif field_schema.get('format') == 'date-time':
+                                value = parse_datetime(value)
+                        elif field_type == 'number':
+                            value = float(value)
+                        elif field_type == 'integer':
+                            value = int(value)
+                        elif field_type == 'boolean':
+                            if isinstance(value, str):
+                                value = value.lower() in ('true', '1', 'yes', 'on')
+                            else:
+                                value = bool(value)
+                        elif field_type == 'array':
+                            if isinstance(value, str):
+                                try:
+                                    value = json.loads(value)
+                                except json.JSONDecodeError:
+                                    # If it's not valid JSON, assume it's a single value
+                                    value = [v.strip() for v in value.split(',') if v.strip()]
+                            elif not isinstance(value, list):
+                                # If it's not a list (could be from multi-select form field), make it a list
+                                value = list(value)
+                    except (ValueError, json.JSONDecodeError):
+                        raise serializers.ValidationError({field_name: f"Invalid value for {field_schema.get('title', field_name)}"})
                     extended_data[field_name] = value
-
             try:
                 validate_extended_data(extended_data, self.extension_schema.schema)
             except ValidationError as e:
                 raise serializers.ValidationError({"extended_data": str(e)})
-
-            ret["extended_data"] = extended_data
+            ret['extended_data'] = extended_data
         return ret
 
     def create(self, validated_data):
-        extended_data = validated_data.pop("extended_data", {})
+        extended_data = {}
+        model_fields = [f.name for f in self.Meta.model._meta.get_fields()]
+
+        for field in list(validated_data.keys()):
+            if field not in model_fields:
+                extended_data[field] = validated_data.pop(field)
+
         instance = super().create(validated_data)
+
         if extended_data:
             instance.extended_data = extended_data
             instance.save()
+
         return instance
 
     def update(self, instance, validated_data):
-        extended_data = validated_data.pop("extended_data", {})
+        extended_data = validated_data.pop('extended_data', {})
         instance = super().update(instance, validated_data)
+
         if extended_data:
-            instance.extended_data = instance.extended_data or {}
+            if not isinstance(instance.extended_data, dict):
+                instance.extended_data = {}
+
+            # Convert date objects to ISO format strings
+            for key, value in extended_data.items():
+                if isinstance(value, (date, datetime)):
+                    extended_data[key] = value.isoformat()
+
             instance.extended_data.update(extended_data)
+
+            # Use DjangoJSONEncoder when saving to ensure all types are properly serialized
+            instance.extended_data = json.loads(json.dumps(instance.extended_data, cls=DjangoJSONEncoder))
+
             instance.save()
+
         return instance
+
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
